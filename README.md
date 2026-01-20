@@ -15,8 +15,9 @@ Paper list:
 
 Product: videos or lectures or blogs
 1. Hypernova
-- Video [Hypernova by Guo Yu](https://www.youtube.com/watch?v=oRhA3pLvsV0)
-- Notes [Hypernova by Guo Yu](./notes-paper/1-HyperNova%202023-08-25%20Guo%20Yu.pdf)
+    - Video: [Hypernova by Guo Yu](https://www.youtube.com/watch?v=oRhA3pLvsV0)
+    - Video: [Hypernova by Chee](https://www.youtube.com/watch?v=B-oYutvzv6g)
+    - Notes: [Hypernova by Guo Yu](./notes-paper/1-HyperNova%202023-08-25%20Guo%20Yu.pdf)
 
 
 
