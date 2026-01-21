@@ -18,6 +18,10 @@ Product: videos or lectures or blogs
     - Video: [Hypernova by Guo Yu](https://www.youtube.com/watch?v=oRhA3pLvsV0)
     - Video: [Hypernova by Chee](https://www.youtube.com/watch?v=B-oYutvzv6g)
     - Notes: [Hypernova by Guo Yu](./notes-paper/1-HyperNova%202023-08-25%20Guo%20Yu.pdf)
+    - Notes: [Hypernova by Yingfei](./notes-paper/1-Hypernova%202026-01-21%20Yingfei.md)
+
+2. Latticefold 
+    - Notes: [Latticefold by Yingfei](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
 
 
 
