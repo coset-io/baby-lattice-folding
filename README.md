@@ -15,10 +15,13 @@ Paper list:
 
 Product: videos or lectures or blogs
 1. Hypernova
-    - Video: [Hypernova by Guo Yu](https://www.youtube.com/watch?v=oRhA3pLvsV0)
-    - Video: [Hypernova by Chee](https://www.youtube.com/watch?v=B-oYutvzv6g)
-    - Notes: [Hypernova by Guo Yu](./notes-paper/1-HyperNova%202023-08-25%20Guo%20Yu.pdf)
-    - Notes: [Hypernova by Yingfei](./notes-paper/1-Hypernova%202026-01-21%20Yingfei.md)
+    - Video:
+        - [Hypernova by Guo Yu](https://www.youtube.com/watch?v=oRhA3pLvsV0)
+        - [Hypernova by Chee](https://www.youtube.com/watch?v=B-oYutvzv6g)
+        - [Hypernova: multifolding of CCS by Yingfei](https://www.youtube.com/watch?v=T_VaDGpESrI)
+    - Notes:
+        - [Hypernova by Guo Yu](./notes-paper/1-HyperNova%202023-08-25%20Guo%20Yu.pdf)
+        - [Hypernova by Yingfei](./notes-paper/1-Hypernova%202026-01-21%20Yingfei.md)
 
 2. Latticefold 
     - Notes: [Latticefold by Yingfei](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
