@@ -25,8 +25,10 @@ Product: videos or lectures or blogs
         - [Hypernova 2026-01-21 by Yingfei](./notes-paper/1-Hypernova%202026-01-21%20Yingfei.md)
 
 2. Latticefold 
-    - Notes: [Latticefold 2026-01-25 by Yingfei](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
-
+    - Notes: 
+        - [Latticefold 2026-01-25 by Yingfei](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
+        - [Latticefold 2024-04 by Yingfei](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
+    - Video: [Latticefold 2026-01-25 by Yingfei](https://youtu.be/pC4joC85axk)
 
 
 Time: 2 months
