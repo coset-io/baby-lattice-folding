@@ -31,7 +31,7 @@ Product: videos or lectures or blogs
     - Video: [Latticefold 2026-01-25 by Yingfei](https://youtu.be/pC4joC85axk)
 
 3. Latticefold plus
-    - Notes: [Latticefold plus by Yingfei](./notes-paper/3-Latticefold_plus%202026-02-08.md) 
+    - Notes: [Latticefold plus by Yingfei](./notes-paper/3-Latticefold_plus%202026-02-08.pdf) 
 
 Time: 2 months
 
