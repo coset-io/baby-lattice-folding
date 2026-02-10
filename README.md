@@ -26,12 +26,21 @@ Product: videos or lectures or blogs
 
 2. Latticefold 
     - Notes: 
-        - [Latticefold 2026-01-25 by Yingfei](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
-        - [Latticefold 2024-04 by Yingfei](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
-    - Video: [Latticefold 2026-01-25 by Yingfei](https://youtu.be/pC4joC85axk)
+        - [Latticefold 2026-01-25](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
+        - [Latticefold 2024-04](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
+    - Video: [Latticefold 2026-01-25](https://youtu.be/pC4joC85axk)
 
 3. Latticefold plus
     - Notes: [Latticefold plus by Yingfei](./notes-paper/3-Latticefold_plus%202026-02-08.pdf) 
+    - Video: [Latticefold 2026-02-08](https://youtu.be/nbOLpfmjFkQ)
+
+4. SALSAA
+    - Notes:
+    - Video:
+
+5. Neo
+    - Notes:
+    - Video:
 
 Time: 2 months
 
