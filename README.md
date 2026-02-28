@@ -31,11 +31,12 @@ Product: videos or lectures or blogs
     - Video: [Latticefold 2026-01-25](https://youtu.be/pC4joC85axk)
 
 3. Latticefold plus
-    - Notes: [Latticefold plus by Yingfei](./notes-paper/3-Latticefold_plus%202026-02-08.pdf) 
+    - Notes: [Latticefold 2026-02-08](./notes-paper/3-Latticefold_plus%202026-02-08.pdf) 
     - Video: [Latticefold 2026-02-08](https://youtu.be/nbOLpfmjFkQ)
 
 4. SALSAA
     - Notes:
+        [Part 1: Norm-check 2026-03-01](./notes-paper/4-SALSAA-I-2026-03-01.pdf)
     - Video:
 
 5. Neo
