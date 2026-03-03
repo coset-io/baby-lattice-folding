@@ -11,7 +11,7 @@ Paper list:
 1. [Hypernova](https://eprint.iacr.org/2023/573)
 2. [Latticefold](https://eprint.iacr.org/2024/257)
 3. [Latticefold+](https://eprint.iacr.org/2025/247)
-4. [Neo](https://eprint.iacr.org/2025/294)
+4. [Neo](https://eprint.iacr.org/2025/294), [SuperNeo](https://eprint.iacr.org/2026/242)
 5. [SALSAA](https://eprint.iacr.org/2025/2124)
 
 Product: videos or lectures or blogs
