@@ -5,7 +5,7 @@ Our plan: 1. theoretical research 2. practical learning 3. coding
 
 ## 1. theoretical research
 
-Goal: Read recent lattice-based folding schemes: Hypernova, Latticefold, Latticefold plus, Neo and SALSAA. Understand how lattice-based folding schemes are designed and the current bottlenecks.
+Goal: Read recent lattice-based folding schemes: Hypernova, Latticefold, Latticefold plus, Neo, SALSAA and Cyclo. Understand how lattice-based folding schemes are designed and the current bottlenecks.
 
 Paper list:
 1. [Hypernova](https://eprint.iacr.org/2023/573)
@@ -13,6 +13,8 @@ Paper list:
 3. [Latticefold+](https://eprint.iacr.org/2025/247)
 4. [Neo](https://eprint.iacr.org/2025/294), [SuperNeo](https://eprint.iacr.org/2026/242)
 5. [SALSAA](https://eprint.iacr.org/2025/2124)
+6. [Cyclo](https://eprint.iacr.org/2026/359) 
+
 
 Product: videos or lectures or blogs
 1. Hypernova
@@ -37,9 +39,13 @@ Product: videos or lectures or blogs
 4. SALSAA
     - Notes:
         [Part 1: Norm-check 2026-03-01](./notes-paper/4-SALSAA-I-2026-03-01.pdf)
-    - Video:
+    - Video: [Part 1: Norm-check 2026-03-01](https://youtu.be/GwlLW2gbi1U)
 
 5. Neo
+    - Notes:
+    - Video:
+      
+6. Cyclo
     - Notes:
     - Video:
 
