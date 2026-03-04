@@ -1,7 +1,7 @@
 # baby-lattice-folding
 This is an educational project aiming to build a Rust implementation of lattice-based folding schemes, progressing through theoretical research, practical code analysis, and hands-on development to understand lattice folding.
 
-Our plan: 1. theoretical research 2. practical learning 3. coding
+Our plan: 1. theoretical research, 2. practical learning, 3. coding
 
 ## 1. theoretical research
 
@@ -49,7 +49,8 @@ Product: videos or lectures or blogs
     - Notes:
     - Video:
 
-Time: 2 months
+Schedule: every Sunday, 20:00 UTC+8
+Timeline: 2026.01 ~ 2026.03
 
 ## 2. practical learning
 
@@ -61,7 +62,7 @@ Codes:
 
 Product: educational notes
 
-Time: 2 months 
+Timeline: 2026.04 ~ 2026.05
 
 ## 3. coding
 
@@ -69,5 +70,5 @@ Goal: We plan to develop baby lattice folding, an educational Rust implementatio
 
 Product: codes
 
-Time: 3 months
+Timeline: 2026.06 ~ 2026.08
 
