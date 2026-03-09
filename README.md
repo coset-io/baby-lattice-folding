@@ -38,8 +38,11 @@ Product: videos or lectures or blogs
 
 4. SALSAA
     - Notes:
-        [Part 1: Norm-check 2026-03-01](./notes-paper/4-SALSAA-I-2026-03-01.pdf)
-    - Video: [Part 1: Norm-check 2026-03-01](https://youtu.be/GwlLW2gbi1U)
+        - [Part 1: Norm-check 2026-03-01](./notes-paper/4-SALSAA-I-2026-03-01.pdf)
+        - [Part 2: Folding scheme 2026-03-08](./notes-paper/4-SALSAA-I-2026-03-08.pdf)
+    - Video: 
+        - [Part 1: Norm-check 2026-03-01](https://youtu.be/GwlLW2gbi1U)
+        - [Part 2: Folding scheme 2026-03-08]
 
 5. Neo
     - Notes:
