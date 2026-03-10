@@ -49,7 +49,7 @@ Product: videos or lectures or blogs
         - [Part 2: Folding scheme 2026-03-08]
 
 5. Neo
-    - Notes:
+    - Notes: [Neo by Kurt Pan](https://lattice.zkpunk.pro/wiki/cryptography/neo/)
     - Video:
       
 6. Cyclo
