@@ -3,7 +3,7 @@
 ---
 
 # baby-lattice-folding
-This is an educational project aiming to build a Rust implementation of lattice-based folding schemes, progressing through theoretical research, practical code analysis, and hands-on development to understand lattice folding.
+This is an educational project aimed at building a Rust implementation of lattice-based folding schemes, progressing through theoretical research, practical code analysis, and hands-on development to better understand lattice folding.
 
 Our plan: 1. theoretical research, 2. practical learning, 3. coding
 
@@ -52,7 +52,7 @@ Product: videos or lectures or blogs
     - Notes: 
         - [Neo by Kurt Pan](https://lattice.zkpunk.pro/wiki/cryptography/neo/)
         - [Neo and SuperNeo 2026-03-15](./notes-paper/5-Neo%20and%20SuperNeo%202026-03-15.pdf)
-    - Video:
+    - Video: [SuperNeo](https://youtu.be/Qs74GhQqUFY?si=V1HXn--7MMyHez_Q)
       
 6. Cyclo
     - Notes:
@@ -61,23 +61,27 @@ Product: videos or lectures or blogs
 Schedule: every Sunday, 20:00 UTC+8
 Timeline: 2026.01 ~ 2026.03
 
-## 2. practical learning
+## 2. practical learning & coding
 
-Goal: Study existing code and understand benchmarks for lattice-based folding schemes.
+Goal:  We plan to develop baby lattice folding, an educational Rust implementation of the lattice-based folding scheme (SALSAA), building upon existing theoretical and practical foundations.
 
-Codes: 
+Outline
+1. Fields
+2. Polynomials and vectors
+3. NTT and polynomial multiplication
+4. Challenge spaces
+5. Sumcheck (over Rings)
+6. MLE/LDE (over Rings)
+7. Ajtai Commitment
+8. Norm check
+9. Decomposition
+10. Folding
+
+Reference: 
  1. <https://github.com/NethermindEth/latticefold>
  2. <https://github.com/lattice-arguments/salsaa>
 
-Product: educational notes
-
-Timeline: 2026.04 ~ 2026.05
-
-## 3. coding
-
-Goal: We plan to develop baby lattice folding, an educational Rust implementation of the lattice-based folding scheme (SALSAA), building upon existing theoretical and practical foundations.
-
 Product: codes
 
-Timeline: 2026.06 ~ 2026.08
+Timeline: 2026.04 ~ 2026.08
 
