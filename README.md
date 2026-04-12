@@ -46,13 +46,13 @@ Product: videos or lectures or blogs
         - [Part 2: Folding scheme 2026-03-08](./notes-paper/4-SALSAA-I-2026-03-08.pdf)
     - Video: 
         - [Part 1: Norm-check 2026-03-01](https://youtu.be/GwlLW2gbi1U)
-        - [Part 2: Folding scheme 2026-03-08](视频链接：https://youtu.be/8KlNRypo_T8)
+        - [Part 2: Folding scheme 2026-03-08](https://youtu.be/8KlNRypo_T8)
 
 5. Neo
     - Notes: 
         - [Neo by Kurt Pan](https://lattice.zkpunk.pro/wiki/cryptography/neo/)
         - [Neo and SuperNeo 2026-03-15](./notes-paper/5-Neo%20and%20SuperNeo%202026-03-15.pdf)
-    - Video: [SuperNeo](https://youtu.be/Qs74GhQqUFY?si=V1HXn--7MMyHez_Q)
+    - Video: [SuperNeo 2026-03-15](https://youtu.be/Qs74GhQqUFY?si=V1HXn--7MMyHez_Q)
       
 6. Cyclo
     - Notes:
