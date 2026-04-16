@@ -1,3 +1,5 @@
+use std::ops::{Add, Mul, Neg, Sub};
+
 /// Element of Z_q = integers mod q.
 ///
 /// Invariant: `value` is always in [0, Q).
@@ -17,26 +19,6 @@ impl<const Q: u64> Zq<Q> {
         self.value
     }
 
-    pub fn add(self, rhs: Self) -> Self {
-        // TODO: overflow check
-        Zq { value: (self.value + rhs.value) % Q}
-    }
-
-    pub fn sub(self, rhs: Self) -> Self {
-        // a - b = (a + (q - b)) % b?
-        if self.value >= rhs.value {
-            Zq { value: self.value - rhs.value }
-        } else {
-            // a < b -> a - b < 0 -> a + Q - b < Q
-            Zq { value: self.value + Q - rhs.value }
-        }
-    }
-
-    pub fn mul(self, rhs: Self) -> Self {
-        // TODO: overflow check
-        Zq { value: (self.value * rhs.value) % Q }
-    }
-
     /// Additive identity: 0 mod Q.
     pub fn zero() -> Self {
         Zq { value: 0 }
@@ -46,13 +28,59 @@ impl<const Q: u64> Zq<Q> {
     pub fn one() -> Self {
         Zq { value: 1 }
     }
+}
+
+impl<const Q: u64> Add for Zq<Q> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        // TODO: overflow check
+        Zq {
+            value: (self.value + rhs.value) % Q,
+        }
+    }
+}
+
+impl<const Q: u64> Sub for Zq<Q> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        // a - b = (a + (q - b)) % b?
+        if self.value >= rhs.value {
+            Zq {
+                value: self.value - rhs.value,
+            }
+        } else {
+            // a < b -> a - b < 0 -> a + Q - b < Q
+            Zq {
+                value: self.value + Q - rhs.value,
+            }
+        }
+    }
+}
+
+impl<const Q: u64> Mul for Zq<Q> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        // TODO: overflow check
+        Zq {
+            value: (self.value * rhs.value) % Q,
+        }
+    }
+}
+
+impl<const Q: u64> Neg for Zq<Q> {
+    type Output = Self;
 
     /// Additive inverse: -self mod Q.
-    pub fn neg(self) -> Self {
+    fn neg(self) -> Self {
         if self.value == 0 {
             self
         } else {
-            Zq { value: Q - self.value }
+            Zq {
+                value: Q - self.value,
+            }
         }
     }
 }
@@ -75,28 +103,28 @@ mod tests {
 
     #[test]
     fn test_add() {
-        assert_eq!(F::new(10).add(F::new(5)).value(), 15);
+        assert_eq!(F::new(10) + F::new(5), F::new(15));
         assert_eq!(F::new(10).add(F::new(7)).value(), 0); // 17 mod 17
         assert_eq!(F::new(10).add(F::new(10)).value(), 3); // 20 mod 17
     }
 
     #[test]
     fn test_sub() {
-        assert_eq!(F::new(10).sub(F::new(5)).value(), 5);
+        assert_eq!(F::new(10) - F::new(5), F::new(5));
         assert_eq!(F::new(5).sub(F::new(10)).value(), 12); // -5 mod 17 = 12
         assert_eq!(F::new(0).sub(F::new(1)).value(), 16); // -1 mod 17
     }
 
     #[test]
     fn test_mul() {
-        assert_eq!(F::new(3).mul(F::new(5)).value(), 15);
+        assert_eq!(F::new(3) * F::new(5), F::new(15));
         assert_eq!(F::new(3).mul(F::new(6)).value(), 1); // 18 mod 17
         assert_eq!(F::new(0).mul(F::new(10)).value(), 0);
     }
 
     #[test]
     fn test_neg() {
-        assert_eq!(F::new(5).neg().value(), 12); // -5 mod 17
+        assert_eq!(-F::new(5), F::new(12)); // -5 mod 17
         assert_eq!(F::new(0).neg().value(), 0);
         assert_eq!(F::new(1).neg().value(), 16);
     }
