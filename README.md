@@ -7,6 +7,45 @@ This is an educational project aimed at building a Rust implementation of lattic
 
 Our plan: 1. theoretical research, 2. practical learning, 3. coding
 
+## Getting started
+
+### Prerequisites
+
+- [Rust](https://www.rust-lang.org/tools/install) (install via rustup)
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  ```
+- Git
+
+### Setup
+
+Clone the repo and run the setup script. This will clone reference codebases, download papers, and verify the Rust toolchain.
+
+```bash
+mkdir baby-lattice-folding && cd baby-lattice-folding
+git clone https://github.com/coset-io/baby-lattice-folding.git
+cd baby-lattice-folding
+./scripts/setup.sh
+```
+
+Or run individual steps:
+
+```bash
+# Download papers (gitignored, not committed)
+./scripts/download-papers.sh
+
+# Clone reference repos into ../references/
+# (latticefold, salsaa, arkworks-algebra, kyber)
+# See scripts/setup.sh for details
+```
+
+### Build & test
+
+```bash
+cargo build
+cargo test
+```
+
 ## 1. theoretical research
 
 Goal: Read recent lattice-based folding schemes: Hypernova, Latticefold, Latticefold plus, Neo, SALSAA and Cyclo. Understand how lattice-based folding schemes are designed and the current bottlenecks.
@@ -17,7 +56,7 @@ Paper list:
 3. [Latticefold+](https://eprint.iacr.org/2025/247)
 4. [Neo](https://eprint.iacr.org/2025/294), [SuperNeo](https://eprint.iacr.org/2026/242)
 5. [SALSAA](https://eprint.iacr.org/2025/2124)
-6. [Cyclo](https://eprint.iacr.org/2026/359) 
+6. [Cyclo](https://eprint.iacr.org/2026/359)
 
 
 Product: videos or lectures or blogs
@@ -30,30 +69,30 @@ Product: videos or lectures or blogs
         - [Hypernova 2023-08-25 by Guo Yu](./notes-paper/1-HyperNova%202023-08-25%20Guo%20Yu.pdf)
         - [Hypernova 2026-01-21 by Yingfei](./notes-paper/1-Hypernova%202026-01-21%20Yingfei.md)
 
-2. Latticefold 
-    - Notes: 
+2. Latticefold
+    - Notes:
         - [Latticefold 2026-01-25](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
         - [Latticefold 2024-04](./notes-paper/2-latticefold%202024-04%20Yingfei.pdf)
     - Video: [Latticefold 2026-01-25](https://youtu.be/pC4joC85axk)
 
 3. Latticefold plus
-    - Notes: [Latticefold 2026-02-08](./notes-paper/3-Latticefold_plus%202026-02-08.pdf) 
+    - Notes: [Latticefold 2026-02-08](./notes-paper/3-Latticefold_plus%202026-02-08.pdf)
     - Video: [Latticefold 2026-02-08](https://youtu.be/nbOLpfmjFkQ)
 
 4. SALSAA
     - Notes:
         - [Part 1: Norm-check 2026-03-01](./notes-paper/4-SALSAA-I-2026-03-01.pdf)
         - [Part 2: Folding scheme 2026-03-08](./notes-paper/4-SALSAA-I-2026-03-08.pdf)
-    - Video: 
+    - Video:
         - [Part 1: Norm-check 2026-03-01](https://youtu.be/GwlLW2gbi1U)
         - [Part 2: Folding scheme 2026-03-08](https://youtu.be/8KlNRypo_T8)
 
 5. Neo
-    - Notes: 
+    - Notes:
         - [Neo by Kurt Pan](https://lattice.zkpunk.pro/wiki/cryptography/neo/)
         - [Neo and SuperNeo 2026-03-15](./notes-paper/5-Neo%20and%20SuperNeo%202026-03-15.pdf)
     - Video: [SuperNeo 2026-03-15](https://youtu.be/Qs74GhQqUFY?si=V1HXn--7MMyHez_Q)
-      
+
 6. Cyclo
     - Notes:
     - Video:
@@ -65,23 +104,23 @@ Timeline: 2026.01 ~ 2026.03
 
 Goal:  We plan to develop baby lattice folding, an educational Rust implementation of the lattice-based folding scheme (SALSAA), building upon existing theoretical and practical foundations.
 
-Outline
-1. Fields
-2. Polynomials and vectors
-3. NTT and polynomial multiplication
-4. Challenge spaces
-5. Sumcheck (over Rings)
-6. MLE/LDE (over Rings)
-7. Ajtai Commitment
-8. Norm check
-9. Decomposition
-10. Folding
+Outline:
+- [ ] Fields — survey existing libraries (ark-ff, etc.), pick one
+- [ ] Polynomials and vectors — survey existing libraries (ark-poly, etc.), pick one
+- [ ] NTT and polynomial multiplication
+- [ ] Challenge spaces
+- [ ] Sumcheck (over Rings)
+- [ ] MLE/LDE (over Rings)
+- [ ] Ajtai Commitment
+- [ ] Decomposition
+- [ ] Norm check
+- [ ] Folding
 
-Reference: 
+Reference:
  1. <https://github.com/NethermindEth/latticefold>
  2. <https://github.com/lattice-arguments/salsaa>
+ 3. <https://github.com/arkworks-rs/algebra>
 
 Product: codes
 
 Timeline: 2026.04 ~ 2026.08
-
