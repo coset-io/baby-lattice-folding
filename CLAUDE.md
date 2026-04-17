@@ -45,12 +45,12 @@ Track this section as the project progresses.
 - Rust workspace setup (Cargo.toml, CI, clippy + fmt)
 - Z_q field arithmetic (`src/zq.rs` — const generic `Zq<Q>`, Add/Sub/Mul/Neg)
 - Polynomial over Z_q (`src/poly.rs` — `Poly<Q>`, schoolbook mul)
+- Ring R_q = Z_q[X]/(X^d+1) (`src/poly.rs` — `Rq<Q, D>`, schoolbook mul + reduction)
 
 ### In Progress
 - NTT / INTT (negacyclic)
 
 ### Not Yet Started (next up)
-- Ring R_q = Z_q[X]/(X^d+1) (polynomial with reduction mod X^d+1)
 - Ajtai commitment
 
 ### Not Started

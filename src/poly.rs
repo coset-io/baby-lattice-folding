@@ -91,6 +91,97 @@ impl<const Q: u64> Mul for Poly<Q> {
     }
 }
 
+/// Polynomial ring element in R_q = Z_q[X]/(X^d + 1).
+///
+/// Always has exactly D coefficients (fixed size).
+/// Arithmetic automatically reduces mod X^D + 1.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rq<const Q: u64, const D: usize> {
+    coeffs: [Zq<Q>; D],
+}
+
+impl<const Q: u64, const D: usize> Rq<Q, D> {
+    pub fn new(coeffs: [Zq<Q>; D]) -> Self {
+        Rq { coeffs }
+    }
+
+    pub fn zero() -> Self {
+        Rq {
+            coeffs: [Zq::zero(); D],
+        }
+    }
+
+    pub fn one() -> Self {
+        let mut coeffs = [Zq::zero(); D];
+        coeffs[0] = Zq::one();
+        Rq { coeffs }
+    }
+
+    pub fn coeffs(&self) -> &[Zq<Q>; D] {
+        &self.coeffs
+    }
+
+    /// Reduce a polynomial (with up to 2D-1 coefficients) mod X^D + 1.
+    fn reduce(full: &[Zq<Q>]) -> [Zq<Q>; D] {
+        assert!(full.len() < 2 * D);
+        let mut coeffs = [Zq::zero(); D];
+        for (i, &c) in full.iter().enumerate() {
+            if i < D {
+                coeffs[i] = coeffs[i] + c;
+            } else {
+                // X^{D+i} = -X^i, subtract
+                coeffs[i - D] = coeffs[i - D] - c;
+            }
+        }
+        coeffs
+    }
+}
+
+impl<const Q: u64, const D: usize> Add for Rq<Q, D> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Rq {
+            coeffs: std::array::from_fn(|i| self.coeffs[i] + rhs.coeffs[i]),
+        }
+    }
+}
+
+impl<const Q: u64, const D: usize> Neg for Rq<Q, D> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        Rq {
+            coeffs: self.coeffs.map(|c| -c),
+        }
+    }
+}
+
+impl<const Q: u64, const D: usize> Sub for Rq<Q, D> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        self + (-rhs)
+    }
+}
+
+impl<const Q: u64, const D: usize> Mul for Rq<Q, D> {
+    type Output = Self;
+
+    #[allow(clippy::needless_range_loop)]
+    fn mul(self, rhs: Self) -> Self {
+        let mut new_coeffs = vec![Zq::<Q>::zero(); self.coeffs.len() + rhs.coeffs.len() - 1];
+        for i in 0..self.coeffs.len() {
+            for j in 0..rhs.coeffs.len() {
+                new_coeffs[i + j] = new_coeffs[i + j] + self.coeffs[i] * rhs.coeffs[j];
+            }
+        }
+        Rq {
+            coeffs: Self::reduce(&new_coeffs),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // import everything in this module
@@ -191,5 +282,82 @@ mod tests {
     fn test_mul_by_constant() {
         // (1 + 2x + 3x^2) * (2) = 2 + 4x + 6x^2
         assert_eq!(p(&[1, 2, 3]) * p(&[2]), p(&[2, 4, 6]));
+    }
+
+    // ─── Rq tests: R_q = Z_q[X]/(X^4 + 1), q=17, d=4 ───
+
+    const D: usize = 4;
+    type Ring = Rq<Q, D>;
+
+    // helper: build ring poly from raw u64 coefficients
+    fn rp(c: [u64; D]) -> Ring {
+        Ring::new(c.map(|v| F::new(v)))
+    }
+
+    #[test]
+    fn test_ring_zero_one() {
+        assert_eq!(Ring::zero(), rp([0, 0, 0, 0]));
+        assert_eq!(Ring::one(), rp([1, 0, 0, 0]));
+    }
+
+    #[test]
+    fn test_ring_add() {
+        // (1 + 2x + 3x^2 + 4x^3) + (5 + 6x + 7x^2 + 8x^3)
+        // = 6 + 8x + 10x^2 + 12x^3
+        assert_eq!(rp([1, 2, 3, 4]) + rp([5, 6, 7, 8]), rp([6, 8, 10, 12]));
+    }
+
+    #[test]
+    fn test_ring_add_with_mod() {
+        // (10 + 0x + 0x^2 + 0x^3) + (10 + 0x + 0x^2 + 0x^3)
+        // = 20 mod 17 = 3
+        assert_eq!(rp([10, 0, 0, 0]) + rp([10, 0, 0, 0]), rp([3, 0, 0, 0]));
+    }
+
+    #[test]
+    fn test_ring_neg() {
+        // -(1 + 2x + 3x^2 + 4x^3) = 16 + 15x + 14x^2 + 13x^3  (mod 17)
+        assert_eq!(-rp([1, 2, 3, 4]), rp([16, 15, 14, 13]));
+    }
+
+    #[test]
+    fn test_ring_sub() {
+        assert_eq!(rp([5, 8, 3, 1]) - rp([2, 3, 1, 1]), rp([3, 5, 2, 0]));
+    }
+
+    #[test]
+    fn test_ring_add_sub_inverse() {
+        let a = rp([3, 5, 7, 11]);
+        assert_eq!(a.clone() + (-a), Ring::zero());
+    }
+
+    #[test]
+    fn test_ring_mul_no_reduction() {
+        // (1 + x) * (1 + x) = 1 + 2x + x^2 (degree 2 < 4, no reduction needed)
+        assert_eq!(rp([1, 1, 0, 0]) * rp([1, 1, 0, 0]), rp([1, 2, 1, 0]));
+    }
+
+    #[test]
+    fn test_ring_mul_with_reduction() {
+        // x^3 * x = x^4 ≡ -1 (mod X^4 + 1) = 16 (mod 17)
+        assert_eq!(rp([0, 0, 0, 1]) * rp([0, 1, 0, 0]), rp([16, 0, 0, 0]));
+    }
+
+    #[test]
+    fn test_ring_mul_full_reduction() {
+        // (1 + x^3) * (1 + x^2) = 1 + x^2 + x^3 + x^5
+        // x^5 = x^{4+1} = -x = 16x (mod 17)
+        // result: 1 + 16x + x^2 + x^3
+        assert_eq!(rp([1, 0, 0, 1]) * rp([1, 0, 1, 0]), rp([1, 16, 1, 1]));
+    }
+
+    #[test]
+    fn test_ring_mul_by_zero() {
+        assert_eq!(rp([3, 5, 7, 11]) * Ring::zero(), Ring::zero());
+    }
+
+    #[test]
+    fn test_ring_mul_by_one() {
+        assert_eq!(rp([3, 5, 7, 11]) * Ring::one(), rp([3, 5, 7, 11]));
     }
 }

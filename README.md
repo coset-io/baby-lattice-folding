@@ -106,9 +106,9 @@ Goal:  We plan to develop baby lattice folding, an educational Rust implementati
 
 Outline:
 - [x] Fields — custom `Zq<Q>` (decided against ark-ff: too heavy for simple Z_q)
-- [ ] Polynomials — custom `Poly<Q>` over `Zq<Q>` (schoolbook mul)
-    - [x] Poly<Q> without reduction
-    - [ ] PolyRing with reduction
+- [x] Polynomials — custom `Poly<Q>` over `Zq<Q>` (schoolbook mul)
+    - [x] `Poly<Q>`: $Z_q[X]$, polynomial ring without reduction
+    - [x] `Rq`:  $R_q = Z_q[X]/(X^D+1)$, polynomial quotient ring.
 - [ ] NTT and polynomial multiplication
 - [ ] Challenge spaces
 - [ ] Sumcheck (over Rings)
