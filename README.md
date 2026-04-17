@@ -105,8 +105,10 @@ Timeline: 2026.01 ~ 2026.03
 Goal:  We plan to develop baby lattice folding, an educational Rust implementation of the lattice-based folding scheme (SALSAA), building upon existing theoretical and practical foundations.
 
 Outline:
-- [ ] Fields — survey existing libraries (ark-ff, etc.), pick one
-- [ ] Polynomials and vectors — survey existing libraries (ark-poly, etc.), pick one
+- [x] Fields — custom `Zq<Q>` (decided against ark-ff: too heavy for simple Z_q)
+- [ ] Polynomials — custom `Poly<Q>` over `Zq<Q>` (schoolbook mul)
+    - [x] Poly<Q> without reduction
+    - [ ] PolyRing with reduction
 - [ ] NTT and polynomial multiplication
 - [ ] Challenge spaces
 - [ ] Sumcheck (over Rings)
