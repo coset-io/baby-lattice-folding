@@ -182,6 +182,75 @@ impl<const Q: u64, const D: usize> Mul for Rq<Q, D> {
     }
 }
 
+/// Polynomial ring element in R_q = Z_q[X]/(X^d + 1), but in evaluation form!
+///
+/// Always has exactly D evaluations of the roots (fixed size).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RqNtt<const Q: u64, const D: usize> {
+    evals: [Zq<Q>; D],
+}
+
+impl<const Q: u64, const D: usize> RqNtt<Q, D> {
+    pub fn new(evals: [Zq<Q>; D]) -> Self {
+        RqNtt { evals }
+    }
+
+    pub fn zero() -> Self {
+        RqNtt {
+            evals: [Zq::zero(); D],
+        }
+    }
+
+    pub fn one() -> Self {
+        RqNtt {
+            evals: [Zq::one(); D],
+        }
+    }
+
+    pub fn evals(&self) -> &[Zq<Q>; D] {
+        &self.evals
+    }
+}
+
+impl<const Q: u64, const D: usize> Add for RqNtt<Q, D> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        RqNtt {
+            evals: std::array::from_fn(|i| self.evals[i] + rhs.evals[i]),
+        }
+    }
+}
+
+impl<const Q: u64, const D: usize> Neg for RqNtt<Q, D> {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        RqNtt {
+            evals: self.evals.map(|c| -c),
+        }
+    }
+}
+
+impl<const Q: u64, const D: usize> Sub for RqNtt<Q, D> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self {
+        self + (-rhs)
+    }
+}
+
+impl<const Q: u64, const D: usize> Mul for RqNtt<Q, D> {
+    type Output = Self;
+
+    #[allow(clippy::needless_range_loop)]
+    fn mul(self, rhs: Self) -> Self {
+        RqNtt {
+            evals: std::array::from_fn(|i| self.evals[i] * rhs.evals[i]),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // import everything in this module
@@ -359,5 +428,113 @@ mod tests {
     #[test]
     fn test_ring_mul_by_one() {
         assert_eq!(rp([3, 5, 7, 11]) * Ring::one(), rp([3, 5, 7, 11]));
+    }
+
+    // ─── RqNtt tests: pointwise ops in evaluation form ───
+
+    type Ntt = RqNtt<Q, D>;
+
+    fn ntt_from(c: [u64; D]) -> Ntt {
+        Ntt::new(c.map(|v| F::new(v)))
+    }
+
+    #[test]
+    fn test_ntt_zero_one() {
+        // zero in eval form = all zeros
+        assert_eq!(Ntt::zero(), ntt_from([0, 0, 0, 0]));
+        // one in eval form = all ones (constant 1 evaluates to 1 everywhere)
+        assert_eq!(Ntt::one(), ntt_from([1, 1, 1, 1]));
+    }
+
+    #[test]
+    fn test_ntt_add() {
+        // pointwise: [1,2,3,4] + [5,6,7,8] = [6,8,10,12]
+        assert_eq!(
+            ntt_from([1, 2, 3, 4]) + ntt_from([5, 6, 7, 8]),
+            ntt_from([6, 8, 10, 12])
+        );
+    }
+
+    #[test]
+    fn test_ntt_add_with_mod() {
+        // 10 + 10 = 20 mod 17 = 3
+        assert_eq!(
+            ntt_from([10, 10, 10, 10]) + ntt_from([10, 10, 10, 10]),
+            ntt_from([3, 3, 3, 3])
+        );
+    }
+
+    #[test]
+    fn test_ntt_neg() {
+        // -[1,2,3,4] = [16,15,14,13] (mod 17)
+        assert_eq!(-ntt_from([1, 2, 3, 4]), ntt_from([16, 15, 14, 13]));
+    }
+
+    #[test]
+    fn test_ntt_sub() {
+        assert_eq!(
+            ntt_from([10, 8, 5, 3]) - ntt_from([3, 2, 1, 1]),
+            ntt_from([7, 6, 4, 2])
+        );
+    }
+
+    #[test]
+    fn test_ntt_add_sub_inverse() {
+        let a = ntt_from([3, 5, 7, 11]);
+        assert_eq!(a.clone() + (-a), Ntt::zero());
+    }
+
+    #[test]
+    fn test_ntt_mul_pointwise() {
+        // pointwise: [2,3,4,5] * [3,4,5,6] = [6,12,20,30]
+        // mod 17: [6, 12, 3, 13]
+        assert_eq!(
+            ntt_from([2, 3, 4, 5]) * ntt_from([3, 4, 5, 6]),
+            ntt_from([6, 12, 3, 13])
+        );
+    }
+
+    #[test]
+    fn test_ntt_mul_by_zero() {
+        assert_eq!(ntt_from([3, 5, 7, 11]) * Ntt::zero(), Ntt::zero());
+    }
+
+    #[test]
+    fn test_ntt_mul_by_one() {
+        // mul by one = identity (pointwise * 1)
+        let a = ntt_from([3, 5, 7, 11]);
+        assert_eq!(a.clone() * Ntt::one(), a);
+    }
+
+    #[test]
+    fn test_ntt_mul_self_inverse() {
+        // a * inv(a) = 1 pointwise, for nonzero entries
+        let a = ntt_from([2, 3, 5, 7]);
+        let a_inv = Ntt::new(a.evals().map(|e| e.inv()));
+        assert_eq!(a * a_inv, Ntt::one());
+    }
+
+    #[test]
+    fn test_ntt_mul_commutativity() {
+        let a = ntt_from([2, 5, 8, 11]);
+        let b = ntt_from([3, 7, 13, 1]);
+        assert_eq!(a.clone() * b.clone(), b * a);
+    }
+
+    #[test]
+    fn test_ntt_mul_associativity() {
+        let a = ntt_from([2, 5, 8, 11]);
+        let b = ntt_from([3, 7, 13, 1]);
+        let c = ntt_from([4, 9, 2, 6]);
+        assert_eq!((a.clone() * b.clone()) * c.clone(), a * (b * c));
+    }
+
+    #[test]
+    fn test_ntt_distributivity() {
+        // a * (b + c) == a*b + a*c
+        let a = ntt_from([2, 5, 8, 11]);
+        let b = ntt_from([3, 7, 13, 1]);
+        let c = ntt_from([4, 9, 2, 6]);
+        assert_eq!(a.clone() * (b.clone() + c.clone()), a.clone() * b + a * c);
     }
 }
