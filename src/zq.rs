@@ -28,6 +28,40 @@ impl<const Q: u64> Zq<Q> {
     pub fn one() -> Self {
         Zq { value: 1 }
     }
+
+    /// Multiplicative inverse of v, i.e. s = v^{-1} s.t. v*s = 1 mod q
+    pub fn inv(self) -> Self {
+        assert!(self.value != 0, "cannout invert zero");
+        // find s, t. s.t. sq + tv = 1
+        let mut a = Q as i128;
+        let mut b = self.value as i128;
+        // q's multiplier
+        let mut s = [1, 0] as [i128; 2];
+        // v's multiplier
+        let mut t = [0, 1] as [i128; 2];
+
+        // gcd: (a, b) = (b, r) until b = 1
+        let mut i = 0;
+        while b > 1 {
+            println!("round {i}: a={a}, b={b}, s={s:?}, t={t:?}");
+            // a > b, b times a factor k and a minus bk
+            let q = a / b;
+            let r = a - q * b;
+            let r_mplr = [s[0] - q * t[0], s[1] - q * t[1]];
+            // (a, b) = (b, r)
+            (a, b) = (b, r);
+            (s, t) = (t, r_mplr);
+            i += 1;
+        }
+
+        // when b = 1, t[1] is v's multiplier, i.e. v^{-1}
+        // Add Q to t[1] to ensure it's positive, then cast it back to u64
+        // should be safe since we originally operate in u64.
+        // mod Q again to enusre it's in range [0, Q)
+        Zq {
+            value: ((t[1] + (Q as i128)) as u64) % Q,
+        }
+    }
 }
 
 impl<const Q: u64> Add for Zq<Q> {
@@ -133,5 +167,19 @@ mod tests {
     fn test_identities() {
         assert_eq!(F::zero().value(), 0);
         assert_eq!(F::one().value(), 1);
+    }
+
+    #[test]
+    fn test_inv() {
+        for i in 1..Q {
+            let e = F::new(i);
+            assert_eq!((e * e.inv()).value(), 1);
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_inv_zero() {
+        F::new(0).inv();
     }
 }
