@@ -29,6 +29,22 @@ impl<const Q: u64> Zq<Q> {
         Zq { value: 1 }
     }
 
+    /// Modular exponentiation: self^exp mod Q (square-and-multiply).
+    pub fn pow(self, exp: u64) -> Self {
+        if exp == 0 {
+            Self::one()
+        } else {
+            // f(x) = g^x
+            //      = g*f(x/2)**2 if x \in odd else f(x/2)**2
+            let half = self.pow(exp / 2);
+            if exp.is_multiple_of(2) {
+                half * half
+            } else {
+                self * (half * half)
+            }
+        }
+    }
+
     /// Multiplicative inverse of v, i.e. s = v^{-1} s.t. v*s = 1 mod q
     pub fn inv(self) -> Self {
         assert!(self.value != 0, "cannout invert zero");
@@ -41,9 +57,7 @@ impl<const Q: u64> Zq<Q> {
         let mut t = [0, 1] as [i128; 2];
 
         // gcd: (a, b) = (b, r) until b = 1
-        let mut i = 0;
         while b > 1 {
-            println!("round {i}: a={a}, b={b}, s={s:?}, t={t:?}");
             // a > b, b times a factor k and a minus bk
             let q = a / b;
             let r = a - q * b;
@@ -51,7 +65,6 @@ impl<const Q: u64> Zq<Q> {
             // (a, b) = (b, r)
             (a, b) = (b, r);
             (s, t) = (t, r_mplr);
-            i += 1;
         }
 
         // when b = 1, t[1] is v's multiplier, i.e. v^{-1}
@@ -167,6 +180,24 @@ mod tests {
     fn test_identities() {
         assert_eq!(F::zero().value(), 0);
         assert_eq!(F::one().value(), 1);
+    }
+
+    #[test]
+    fn test_pow() {
+        // 3^0 = 1
+        assert_eq!(F::new(3).pow(0), F::one());
+        // 3^1 = 3
+        assert_eq!(F::new(3).pow(1), F::new(3));
+        // 3^2 = 9
+        assert_eq!(F::new(3).pow(2), F::new(9));
+        // 3^3 = 27 mod 17 = 10
+        assert_eq!(F::new(3).pow(3), F::new(10));
+        // Fermat's little theorem: a^(q-1) = 1 for a != 0
+        for i in 1..Q {
+            assert_eq!(F::new(i).pow(Q - 1), F::one());
+        }
+        // 0^n = 0 for n > 0
+        assert_eq!(F::new(0).pow(5), F::zero());
     }
 
     #[test]
