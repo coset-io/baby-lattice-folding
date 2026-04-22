@@ -119,9 +119,10 @@ Outline:
 - [ ] Folding
 
 Reference:
- 1. <https://github.com/NethermindEth/latticefold>
- 2. <https://github.com/lattice-arguments/salsaa>
- 3. <https://github.com/arkworks-rs/algebra>
+ 1. Latticefold: <https://github.com/NethermindEth/latticefold>
+ 2. SALSAA: <https://github.com/lattice-arguments/salsaa>
+ 3. Cyclo: <https://github.com/osdnk/cyclo>
+ 4. Arkworks-Rust: <https://github.com/arkworks-rs/algebra>
 
 Product: codes
 
