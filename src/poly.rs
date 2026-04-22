@@ -24,6 +24,14 @@ impl<const Q: u64> Poly<Q> {
             coeffs: vec![Zq::one()],
         }
     }
+
+    pub fn eval(&self, x: u64) -> Zq<Q> {
+        let mut s = Zq::<Q>::zero();
+        for (i, &c) in self.coeffs.iter().enumerate() {
+            s = s + c * Zq::<Q>::new(x).pow(i as u64);
+        }
+        s
+    }
 }
 
 impl<const Q: u64> Add for Poly<Q> {
@@ -351,6 +359,42 @@ mod tests {
     fn test_mul_by_constant() {
         // (1 + 2x + 3x^2) * (2) = 2 + 4x + 6x^2
         assert_eq!(p(&[1, 2, 3]) * p(&[2]), p(&[2, 4, 6]));
+    }
+
+    // ─── Poly::eval tests ───
+
+    #[test]
+    fn test_eval_constant() {
+        // f = 5, f(x) = 5 for all x
+        assert_eq!(p(&[5]).eval(0), F::new(5));
+        assert_eq!(p(&[5]).eval(3), F::new(5));
+    }
+
+    #[test]
+    fn test_eval_linear() {
+        // f = 3 + 5x
+        // f(0) = 3, f(1) = 8, f(2) = 13
+        assert_eq!(p(&[3, 5]).eval(0), F::new(3));
+        assert_eq!(p(&[3, 5]).eval(1), F::new(8));
+        assert_eq!(p(&[3, 5]).eval(2), F::new(13));
+    }
+
+    #[test]
+    fn test_eval_quadratic() {
+        // f = 3 + 5x + 2x^2  (mod 17)
+        // f(0) = 3
+        // f(1) = 3 + 5 + 2 = 10
+        // f(2) = 3 + 10 + 8 = 21 mod 17 = 4
+        // f(16) = f(-1 mod 17) = 3 - 5 + 2 = 0
+        assert_eq!(p(&[3, 5, 2]).eval(0), F::new(3));
+        assert_eq!(p(&[3, 5, 2]).eval(1), F::new(10));
+        assert_eq!(p(&[3, 5, 2]).eval(2), F::new(4));
+        assert_eq!(p(&[3, 5, 2]).eval(16), F::new(0));
+    }
+
+    #[test]
+    fn test_eval_zero_poly() {
+        assert_eq!(R::zero().eval(5), F::zero());
     }
 
     // ─── Rq tests: R_q = Z_q[X]/(X^4 + 1), q=17, d=4 ───
