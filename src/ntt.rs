@@ -97,20 +97,24 @@ pub fn _ntt<const Q: u64, const D: u64>(coeffs: Vec<Zq<Q>>, psi: Zq<Q>, zeta_exp
 }
 
 
-// TODO: finish bit reverse
-// /// Reverse order of the result.
-// /// Since the result of our NTT would be (w^1, w^5, w^3, w^7) for d=4,
-// /// but we expect it to be (w^1, w^3, w^5, w^7).
-// fn _bit_reverse_permutation<T>(v: &mut [T]) {
-//     let n = v.len();
-//     let log_n = n.trailing_zeros();
-//     for i in 0..n {
-//         let j = i.reverse_bits() >> (usize::BITS - log_n);
-//         if i < j {
-//             v.swap(i, j);
-//         }
-//     }
-// }
+/// Reverse order of the result.
+/// Since the result of our NTT would be (w^1, w^5, w^3, w^7) for d=4,
+/// but we expect it to be (w^1, w^3, w^5, w^7).
+/// Intuition:
+/// So it's actually dividing elements k s.t. \psi^{2k+1} is a root of x^d+1
+/// every layer we put w^{n/2} (even) to the left and -w^{n/2} to the right.
+/// So we just map the result from NTT back to (w^1, w^3, w^5, w^7) with bit-reverse permutation
+
+fn _bit_reverse_permutation<T>(v: &mut [T]) {
+    let n = v.len();
+    let log_n = n.trailing_zeros();
+    for i in 0..n {
+        let j = i.reverse_bits() >> (usize::BITS - log_n);
+        if i < j {
+            v.swap(i, j);
+        }
+    }
+}
 
 
 /// NTT: split polynomials X^d+1 into irreducibles. For negacyclic (X^d+1), to fully split the
@@ -123,11 +127,19 @@ pub fn ntt<const Q: u64, const D: u64>(coeffs: Vec<Zq<Q>>, psi: Zq<Q>) -> Vec<Zq
     assert!((Q-1).is_multiple_of(2*D as u64));
 
     let mut result = _ntt::<Q,D>(coeffs, psi, D);
-    // _bit_reverse_permutation(&mut result);
+    _bit_reverse_permutation(&mut result);
     result
 }
 
-pub fn intt<const Q: u64>(evals: Vec<Zq<Q>>) -> Vec<Zq<Q>> {
+
+pub fn intt<const Q: u64, const D: u64>(evals: Vec<Zq<Q>>, psi: Zq<Q>) -> Vec<Zq<Q>> {
+    assert!(D.is_power_of_two(), "d should be power of two to split completely: d={D}");
+    assert!((Q-1).is_multiple_of(2*D as u64));
+    todo!()
+}
+
+
+pub fn _intt<const Q: u64>(evals: Vec<Zq<Q>>) -> Vec<Zq<Q>> {
     todo!()
 }
 
@@ -177,9 +189,10 @@ mod tests {
 
     #[test]
     fn test_intt_backward() {
+        let psi = setup();
         let evals = vec![F::new(15), F::new(0), F::new(0), F::new(15)];
         let expected_coeffs = vec![F::new(16), F::new(3), F::new(0), F::new(14)];
-        assert_eq!(intt::<Q>(evals), expected_coeffs);
+        assert_eq!(intt::<Q, D>(evals, psi), expected_coeffs);
     }
 
     #[test]
