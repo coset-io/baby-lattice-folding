@@ -46,9 +46,10 @@ Track this section as the project progresses.
 - Z_q field arithmetic (`src/zq.rs` — const generic `Zq<Q>`, Add/Sub/Mul/Neg)
 - Polynomial over Z_q (`src/poly.rs` — `Poly<Q>`, schoolbook mul)
 - Ring R_q = Z_q[X]/(X^d+1) (`src/poly.rs` — `Rq<Q, D>`, schoolbook mul + reduction)
+- NTT / INTT negacyclic (`src/ntt.rs` — recursive (inverse) butterfly + bit-reversal, tested q=17 d=4 and q=12289 d=1024)
 
 ### In Progress
-- NTT / INTT (negacyclic)
+- (none)
 
 ### Not Yet Started (next up)
 - Ajtai commitment
