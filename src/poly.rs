@@ -1,3 +1,4 @@
+use super::ntt;
 use super::zq::Zq;
 use std::ops::{Add, Mul, Neg, Sub};
 
@@ -129,6 +130,14 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
         &self.coeffs
     }
 
+    /// Convert to NTT (evaluation) form.
+    pub fn ntt(self) -> RqNtt<Q, D> {
+        let evals_vec = ntt::ntt::<Q, D>(self.coeffs.to_vec());
+        RqNtt {
+            evals: evals_vec.try_into().unwrap(),
+        }
+    }
+
     /// Reduce a polynomial (with up to 2D-1 coefficients) mod X^D + 1.
     fn reduce(full: &[Zq<Q>]) -> [Zq<Q>; D] {
         assert!(full.len() < 2 * D);
@@ -217,6 +226,14 @@ impl<const Q: u64, const D: usize> RqNtt<Q, D> {
 
     pub fn evals(&self) -> &[Zq<Q>; D] {
         &self.evals
+    }
+
+    /// Convert back to coefficient form.
+    pub fn intt(self) -> Rq<Q, D> {
+        let coeffs_vec = ntt::intt::<Q, D>(self.evals.to_vec());
+        Rq {
+            coeffs: coeffs_vec.try_into().unwrap(),
+        }
     }
 }
 
@@ -580,5 +597,36 @@ mod tests {
         let b = ntt_from([3, 7, 13, 1]);
         let c = ntt_from([4, 9, 2, 6]);
         assert_eq!(a.clone() * (b.clone() + c.clone()), a.clone() * b + a * c);
+    }
+
+    // ─── Rq <-> RqNtt conversion tests ───
+
+    #[test]
+    fn test_rq_ntt_roundtrip() {
+        let a = rp([10, 4, 8, 0]);
+        assert_eq!(a.clone().ntt().intt(), a);
+    }
+
+    #[test]
+    fn test_rq_ntt_roundtrip_ones() {
+        let a = Ring::one();
+        assert_eq!(a.clone().ntt().intt(), a);
+    }
+
+    #[test]
+    fn test_rq_ntt_mul_matches_schoolbook() {
+        // NTT mul should give same result as schoolbook mul
+        let a = rp([1, 0, 0, 1]); // 1 + x^3
+        let b = rp([1, 0, 1, 0]); // 1 + x^2
+        let schoolbook = a.clone() * b.clone();
+        let ntt_result = (a.ntt() * b.ntt()).intt();
+        assert_eq!(ntt_result, schoolbook);
+    }
+
+    #[test]
+    fn test_rq_ntt_mul_by_one() {
+        let a = rp([3, 5, 7, 11]);
+        let one = Ring::one();
+        assert_eq!((a.clone().ntt() * one.ntt()).intt(), a);
     }
 }

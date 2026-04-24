@@ -49,13 +49,46 @@ pub fn find_primitive_2d_root_of_unity<const Q: u64>(d: u64) -> Zq<Q> {
     panic!("no multiplicative generator found for Q={Q}")
 }
 
+/// Reverse order of the result.
+/// Since the result of our NTT would be (w^1, w^5, w^3, w^7) for d=4,
+/// but we expect it to be (w^1, w^3, w^5, w^7).
+/// Intuition:
+/// So it's actually dividing elements k s.t. \psi^{2k+1} is a root of x^d+1
+/// every layer we put w^{n/2} (even) to the left and -w^{n/2} to the right.
+/// So we just map the result from NTT back to (w^1, w^3, w^5, w^7) with bit-reverse permutation
+fn _bit_reverse_permutation<T>(v: &mut [T]) {
+    let n = v.len();
+    let log_n = n.trailing_zeros();
+    for i in 0..n {
+        let j = i.reverse_bits() >> (usize::BITS - log_n);
+        if i < j {
+            v.swap(i, j);
+        }
+    }
+}
+
+/// NTT: split polynomial Z_q[X]/(X^d+1) into their remainders in irreducibles Z_q[X]/(X-\zeta^i).
+/// For negacyclic (X^d+1), to fully split X^d+1, we need {d} to be a power of two.
+/// Otherwise the last layer wouldn't be degree 1 poly, might be deg-2 or something else.
+/// Here we only deal with the ones can be split *completely* for simplicity and efficiency
+/// in the split fields.
+pub fn ntt<const Q: u64, const D: usize>(coeffs: Vec<Zq<Q>>) -> Vec<Zq<Q>> {
+    assert!(
+        D.is_power_of_two(),
+        "d should be power of two to split completely: d={D}"
+    );
+    assert!((Q - 1).is_multiple_of(2 * D as u64));
+
+    let psi = find_primitive_2d_root_of_unity::<Q>(D as u64);
+
+    let mut result = _ntt::<Q, D>(coeffs, psi, D as u64);
+    _bit_reverse_permutation(&mut result);
+    result
+}
+
 /// This is implemented according to this great article https://electricdusk.com/ntt.html
 /// zeta means current level is Z_q[X]/(X^d - \psi^{zeta_exp})
-pub fn _ntt<const Q: u64, const D: u64>(
-    coeffs: Vec<Zq<Q>>,
-    psi: Zq<Q>,
-    zeta_exp: u64,
-) -> Vec<Zq<Q>> {
+fn _ntt<const Q: u64, const D: usize>(coeffs: Vec<Zq<Q>>, psi: Zq<Q>, zeta_exp: u64) -> Vec<Zq<Q>> {
     let d = coeffs.len();
     assert!((Q - 1).is_multiple_of(2 * d as u64));
 
@@ -64,8 +97,17 @@ pub fn _ntt<const Q: u64, const D: u64>(
     if d == 1 {
         return vec![coeffs[0]];
     }
+
+    // Find the term \zeta^{d/2} for this split, which is used to replace X^{d/2} with `root`
+    // to reduce the polynomial to a_l and a_r.
+    // We pass `zeta_exp` instead of \zeta^{d/2} directly because doing square root of field is expensive.
+    // This is required in later recursion.
+    // - left:   (\zeta^{d/2})^{1/2}
+    // - right: -(\zeta^{d/2})^{1/2}
+    // Instead, we track the current exponent of zeta and we can calculate the term.
+    // Replace X^{d/2} with zeta^ X^{d/2}..X^d
     // psi_power = d/2 first.
-    // E.g. d=256, root here is \psi^{128} since X^{256}+1 = (X^{128} - 1)(X^{128} + 1)
+    // E.g. d=256, root here is \psi^{128} since X^{256}+1 = (X^{128} - \zeta^{128})(X^{128} + \zeta^{128})
     let root = psi.pow(zeta_exp / 2);
     // Here is the "butterfly" part
     // E.g. we're at a \in Z_q[X] / (X^256+1) and we're gonna split to
@@ -94,63 +136,32 @@ pub fn _ntt<const Q: u64, const D: u64>(
     //                        = X^{128} - \psi^{128+D}, where D=256 and \psi^D = -1.
     // TODO: we can actually derive the correct root with a precalculated table \psi...\psi^{511}
     let a_l_coeffs = _ntt::<Q, D>(a_l, psi, zeta_exp / 2);
-    let a_r_coeffs = _ntt::<Q, D>(a_r, psi, zeta_exp / 2 + D);
+    let a_r_coeffs = _ntt::<Q, D>(a_r, psi, zeta_exp / 2 + D as u64);
     a_l_coeffs.into_iter().chain(a_r_coeffs).collect()
 }
 
-/// Reverse order of the result.
-/// Since the result of our NTT would be (w^1, w^5, w^3, w^7) for d=4,
-/// but we expect it to be (w^1, w^3, w^5, w^7).
-/// Intuition:
-/// So it's actually dividing elements k s.t. \psi^{2k+1} is a root of x^d+1
-/// every layer we put w^{n/2} (even) to the left and -w^{n/2} to the right.
-/// So we just map the result from NTT back to (w^1, w^3, w^5, w^7) with bit-reverse permutation
-fn _bit_reverse_permutation<T>(v: &mut [T]) {
-    let n = v.len();
-    let log_n = n.trailing_zeros();
-    for i in 0..n {
-        let j = i.reverse_bits() >> (usize::BITS - log_n);
-        if i < j {
-            v.swap(i, j);
-        }
-    }
-}
-
-/// NTT: split polynomials X^d+1 into irreducibles. For negacyclic (X^d+1), to fully split the
-/// polynomial, we need {d} to be a power of two. Otherwise the last layer wouldn't be degree 1 poly, might be
-/// degree 2 or something else.
-/// Here we only deal with the ones can be split *completely* for simplicity and efficiency
-/// in the split fields.
-pub fn ntt<const Q: u64, const D: u64>(coeffs: Vec<Zq<Q>>, psi: Zq<Q>) -> Vec<Zq<Q>> {
+/// Inverse NTT: recover evaluations (remainders) in irreducible polynomials Z_q[X]/(X-\zeta^i) back
+/// to the single polynomial in Z_q[X]/(X^d+1).
+/// Assumption is the same as NTT:
+/// 1. 2d | q-1 so primitive 2d-th roots exist.
+/// 2. d should be a power of two so the polynomial can be fully split into deg-1.
+pub fn intt<const Q: u64, const D: usize>(mut evals: Vec<Zq<Q>>) -> Vec<Zq<Q>> {
     assert!(
         D.is_power_of_two(),
         "d should be power of two to split completely: d={D}"
     );
-    assert!((Q - 1).is_multiple_of(2 * D));
+    assert!((Q - 1).is_multiple_of(2 * D as u64));
 
-    let mut result = _ntt::<Q, D>(coeffs, psi, D);
-    _bit_reverse_permutation(&mut result);
-    result
-}
-
-pub fn intt<const Q: u64, const D: u64>(mut evals: Vec<Zq<Q>>, psi: Zq<Q>) -> Vec<Zq<Q>> {
-    assert!(
-        D.is_power_of_two(),
-        "d should be power of two to split completely: d={D}"
-    );
-    assert!((Q - 1).is_multiple_of(2 * D));
+    let psi = find_primitive_2d_root_of_unity::<Q>(D as u64);
 
     // since we need to run iNTT on the original order of the output from NTT
     _bit_reverse_permutation(&mut evals);
 
-    _intt::<Q, D>(evals, psi, D)
+    _intt::<Q, D>(evals, psi, D as u64)
 }
 
-pub fn _intt<const Q: u64, const D: u64>(
-    evals: Vec<Zq<Q>>,
-    psi: Zq<Q>,
-    zeta_exp: u64,
-) -> Vec<Zq<Q>> {
+/// Inverse NTT: recover polynomials Z_q[X]/(X^d+1) from irreducible polynomials.
+fn _intt<const Q: u64, const D: usize>(evals: Vec<Zq<Q>>, psi: Zq<Q>, zeta_exp: u64) -> Vec<Zq<Q>> {
     // return coefficient form
     let d = evals.len();
     assert!((Q - 1).is_multiple_of(2 * d as u64));
@@ -162,12 +173,21 @@ pub fn _intt<const Q: u64, const D: u64>(
     }
     let (evals_l, evals_r) = evals.split_at(d / 2);
 
-    let a_l = _intt::<Q, D>(evals_l.to_vec(), psi, zeta_exp / 2);
-    let a_r = _intt::<Q, D>(evals_r.to_vec(), psi, zeta_exp / 2 + D);
-
     // Inverse butterfly: recover a[i] and a[i+d/2] from a_l[i] and a_r[i]
-    let mut a: Vec<Zq<Q>> = vec![Zq::<Q>::zero(); d];
+    // It's just the inverse of NTT butterfly. Observing the first term of a_l(x) and a_r(x)
+    // - a_l0 = a_0 + \zeta^{d/2} a_{128}
+    // - a_r0 = a_0 - \zeta^{d/2} a_{128}
+    // Adding them we get       a_0     = 2^{-1} * (a_l0 + a_r0)
+    // Subtracting them we get  a_{128} = 2^{-1} * (a_l0 - a_r0) * \zeta^{-128}
+    // So we recover a_i and a_{i+d/2} from a_li and a_ri with 2^{-1} and \zeta^{-d/2}
+
+    // We use the same approach to calculate \zeta^{128}
     let root = psi.pow(zeta_exp / 2);
+    // Recursively prepare a_l and a_r
+    let a_l = _intt::<Q, D>(evals_l.to_vec(), psi, zeta_exp / 2);
+    let a_r = _intt::<Q, D>(evals_r.to_vec(), psi, zeta_exp / 2 + D as u64);
+    // Actual inverse butterfly as described above
+    let mut a: Vec<Zq<Q>> = vec![Zq::<Q>::zero(); d];
     let two_inv = Zq::new(2).inv();
     for i in 0..(d / 2) {
         a[i] = two_inv * (a_l[i] + a_r[i]);
@@ -182,11 +202,11 @@ mod tests {
     use super::*;
 
     const Q: u64 = 17;
-    const D: u64 = 4;
+    const D: usize = 4;
     type F = Zq<Q>;
 
     fn setup() -> Zq<Q> {
-        let psi = find_primitive_2d_root_of_unity::<Q>(D);
+        let psi = find_primitive_2d_root_of_unity::<Q>(D as u64);
         println!("psi={:?}", psi);
         psi
     }
@@ -194,8 +214,8 @@ mod tests {
     #[test]
     fn test_primitive_2d_root_of_unity() {
         let psi = setup();
-        assert_eq!(psi.pow(2 * D), F::one()); // w^{2d} = 1
-        assert_eq!(psi.pow(D), -F::one()); // w^d = -1
+        assert_eq!(psi.pow(2 * D as u64), F::one()); // w^{2d} = 1
+        assert_eq!(psi.pow(D as u64), -F::one()); // w^d = -1
     }
 
     // Sage test vectors: q=17, d=4, negacyclic NTT (X^d+1)
@@ -218,36 +238,33 @@ mod tests {
             evals
         };
         let evals = get_evals();
-        assert_eq!(ntt::<Q, D>(coeffs, psi), evals);
+        assert_eq!(ntt::<Q, D>(coeffs), evals);
     }
 
     #[test]
     fn test_intt_backward() {
-        let psi = setup();
         let evals = vec![F::new(14), F::new(0), F::new(10), F::new(16)];
         let expected_coeffs = vec![F::new(10), F::new(4), F::new(8), F::new(0)];
 
-        assert_eq!(intt::<Q, D>(evals, psi), expected_coeffs);
+        assert_eq!(intt::<Q, D>(evals), expected_coeffs);
     }
 
     #[test]
     fn test_ntt_intt_roundtrip() {
         type F = Zq<Q>;
-        let psi = setup();
         let coeffs = vec![F::new(16), F::new(3), F::new(0), F::new(14)];
         let coeffs_clone = coeffs.clone();
-        assert_eq!(intt::<Q, D>(ntt::<Q, D>(coeffs, psi), psi), coeffs_clone);
+        assert_eq!(intt::<Q, D>(ntt::<Q, D>(coeffs)), coeffs_clone);
     }
 
     // ─── q=12289, d=1024 (Falcon params) ───
 
     const Q2: u64 = 12289;
-    const D2: u64 = 1024;
+    const D2: usize = 1024;
     type F2 = Zq<Q2>;
 
     #[test]
     fn test_ntt_falcon() {
-        let psi = find_primitive_2d_root_of_unity::<Q2>(D2);
         let coeffs_raw: [u64; 1024] = [
             8633, 1504, 11298, 8147, 6951, 5539, 3291, 334, 7732, 376, 3099, 4879, 9978, 7512,
             3274, 6114, 4942, 8255, 8730, 758, 1334, 5361, 3507, 10969, 5079, 9882, 6516, 4586,
@@ -402,9 +419,9 @@ mod tests {
         let coeffs: Vec<F2> = coeffs_raw.iter().map(|&c| F2::new(c)).collect();
         let expected_evals: Vec<F2> = evals_raw.iter().map(|&e| F2::new(e)).collect();
 
-        let actual_evals = ntt::<Q2, D2>(coeffs.clone(), psi);
+        let actual_evals = ntt::<Q2, D2>(coeffs.clone());
         assert_eq!(actual_evals, expected_evals);
-        let coeffs_roundtrip = intt::<Q2, D2>(actual_evals, psi);
+        let coeffs_roundtrip = intt::<Q2, D2>(actual_evals);
         assert_eq!(coeffs, coeffs_roundtrip);
     }
 }
