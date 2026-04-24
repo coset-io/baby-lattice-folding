@@ -110,10 +110,10 @@ Outline:
     - [x] `Poly<Q>`: $Z_q[X]$, polynomial ring without reduction
     - [x] `Rq`:  $R_q = Z_q[X]/(X^D+1)$, polynomial quotient ring.
 - [x] NTT and polynomial multiplication
+- [x] Ajtai Commitment
 - [ ] Challenge spaces
 - [ ] Sumcheck (over Rings)
 - [ ] MLE/LDE (over Rings)
-- [ ] Ajtai Commitment
 - [ ] Decomposition
 - [ ] Norm check
 - [ ] Folding

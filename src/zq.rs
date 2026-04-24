@@ -1,3 +1,5 @@
+use rand::Rng;
+
 use std::ops::{Add, Mul, Neg, Sub};
 
 /// Element of Z_q = integers mod q.
@@ -74,6 +76,10 @@ impl<const Q: u64> Zq<Q> {
         Zq {
             value: ((t[1] + (Q as i128)) as u64) % Q,
         }
+    }
+
+    pub fn random(rng: &mut impl Rng) -> Self {
+        Zq::new(rng.random_range(0..Q))
     }
 }
 

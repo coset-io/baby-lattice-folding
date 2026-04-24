@@ -12,4 +12,4 @@ clippy:
 	cargo clippy -- -D warnings
 
 test:
-	cargo test
+	cargo test -- --nocapture

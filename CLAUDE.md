@@ -47,14 +47,13 @@ Track this section as the project progresses.
 - Polynomial over Z_q (`src/poly.rs` — `Poly<Q>`, schoolbook mul)
 - Ring R_q = Z_q[X]/(X^d+1) (`src/poly.rs` — `Rq<Q, D>`, schoolbook mul + reduction)
 - NTT / INTT negacyclic (`src/ntt.rs` — recursive (inverse) butterfly + bit-reversal, tested q=17 d=4 and q=12289 d=1024)
+- Rq ↔ RqNtt conversion (`src/poly.rs` — `Rq::ntt()`, `RqNtt::intt()`, pointwise ops)
+- Ajtai commitment (`src/ajtai.rs` — setup + commit over `RqNtt`, additive homomorphism tested)
 
 ### In Progress
 - (none)
 
 ### Not Yet Started (next up)
-- Ajtai commitment
-
-### Not Started
 - MLE / LDE over rings
 - Sumcheck over rings
 - Norm check (canonical embedding ℓ2)

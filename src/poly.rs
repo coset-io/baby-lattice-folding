@@ -1,3 +1,5 @@
+use rand::Rng;
+
 use super::ntt;
 use super::zq::Zq;
 use std::ops::{Add, Mul, Neg, Sub};
@@ -104,7 +106,7 @@ impl<const Q: u64> Mul for Poly<Q> {
 ///
 /// Always has exactly D coefficients (fixed size).
 /// Arithmetic automatically reduces mod X^D + 1.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rq<const Q: u64, const D: usize> {
     coeffs: [Zq<Q>; D],
 }
@@ -128,6 +130,12 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
 
     pub fn coeffs(&self) -> &[Zq<Q>; D] {
         &self.coeffs
+    }
+
+    pub fn random(rng: &mut impl Rng) -> Self {
+        Rq {
+            coeffs: std::array::from_fn(|_| Zq::random(rng)),
+        }
     }
 
     /// Convert to NTT (evaluation) form.
@@ -202,7 +210,7 @@ impl<const Q: u64, const D: usize> Mul for Rq<Q, D> {
 /// Polynomial ring element in R_q = Z_q[X]/(X^d + 1), but in evaluation form!
 ///
 /// Always has exactly D evaluations of the roots (fixed size).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RqNtt<const Q: u64, const D: usize> {
     evals: [Zq<Q>; D],
 }
@@ -226,6 +234,12 @@ impl<const Q: u64, const D: usize> RqNtt<Q, D> {
 
     pub fn evals(&self) -> &[Zq<Q>; D] {
         &self.evals
+    }
+
+    pub fn random(rng: &mut impl Rng) -> Self {
+        RqNtt {
+            evals: std::array::from_fn(|_| Zq::random(rng)),
+        }
     }
 
     /// Convert back to coefficient form.
