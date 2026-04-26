@@ -94,11 +94,11 @@ Product: videos or lectures or blogs
     - Video: [SuperNeo 2026-03-15](https://youtu.be/Qs74GhQqUFY?si=V1HXn--7MMyHez_Q)
 
 6. Cyclo
-    - Notes:
+    - Notes:[Cyclo 2026-04-26](./notes-paper/6-Cyclo-26-04-26.pdf)
     - Video:
 
 Schedule: every Sunday, 20:00 UTC+8
-Timeline: 2026.01 ~ 2026.03
+Timeline: 2026.01 ~ 2026.04
 
 ## 2. practical learning & coding
 
