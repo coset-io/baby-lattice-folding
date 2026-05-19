@@ -1,5 +1,6 @@
 use rand::Rng;
 
+use crate::ring::Ring;
 use std::ops::{Add, Mul, Neg, Sub};
 
 /// Element of Z_q = integers mod q.
@@ -135,6 +136,15 @@ impl<const Q: u64> Neg for Zq<Q> {
                 value: Q - self.value,
             }
         }
+    }
+}
+
+impl<const Q: u64> Ring for Zq<Q> {
+    fn zero() -> Self {
+        Self::zero()
+    }
+    fn one() -> Self {
+        Self::one()
     }
 }
 

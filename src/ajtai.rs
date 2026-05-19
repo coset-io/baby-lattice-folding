@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use super::poly::RqNtt;
+use super::ring::RqNtt;
 
 // Generate a random matrix (kappa x m) of Rq, in evaluation form.
 pub fn setup<const Q: u64, const D: usize>(
@@ -19,14 +19,6 @@ pub fn setup<const Q: u64, const D: usize>(
     mat
 }
 
-// def commit(A: vector, z: vector) -> vector:
-//     """
-//     A: k x m, random matrix from setup
-//     z: m x 1, witness
-
-//     return c = Az: k x 1
-//     """
-//     return A * z
 
 pub fn commit<const Q: u64, const D: usize>(
     a: &[Vec<RqNtt<Q, D>>],

@@ -111,6 +111,8 @@ Outline:
 - [x] NTT and polynomial multiplication
 - [x] Ajtai Commitment
 - [ ] Challenge spaces
+    - Fold challenge (Π^fold): ternary {-1,0,1} uniform (p=1/3 each). Maximises entropy for soundness. Not a strong subtractive set — SALSAA relies on large q making non-invertible differences negligible (~2^{-94} for q≈2^50). Ref: `salsaa/src/cyclotomic_ring.rs:319` (`random_biased`)
+    - JL projection (Π^{⊗RP}): ternary {-1,0,1} with p(0)=1/2, p(±1)=1/4 (two random bools). Only needs mean=0 + bounded variance for JL property. Sparser = faster. Ref: `salsaa/src/subroutines/project.rs:26` (`challenge_for_project`)
 - [ ] Sumcheck (over Rings)
 - [ ] MLE/LDE (over Rings)
 - [ ] Decomposition
