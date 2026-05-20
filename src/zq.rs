@@ -82,6 +82,12 @@ impl<const Q: u64> Zq<Q> {
     pub fn random(rng: &mut impl Rng) -> Self {
         Zq::new(rng.random_range(0..Q))
     }
+
+    pub fn to_centered(&self) -> i64 {
+        let v = self.value as i64;
+        let half = (Q / 2) as i64;
+        if v > half { v - (Q as i64) } else { v }
+    }
 }
 
 impl<const Q: u64> Add for Zq<Q> {
@@ -228,5 +234,59 @@ mod tests {
     #[should_panic]
     fn test_inv_zero() {
         F::new(0).inv();
+    }
+
+    // ─── to_centered ───
+
+    #[test]
+    fn test_to_centered_zero() {
+        // 0 → 0
+        assert_eq!(F::new(0).to_centered(), 0);
+    }
+
+    #[test]
+    fn test_to_centered_positive_side() {
+        // values in [0, q/2] map to themselves
+        // q = 17, q/2 = 8, so 1..=8 stay positive
+        assert_eq!(F::new(1).to_centered(), 1);
+        assert_eq!(F::new(5).to_centered(), 5);
+        assert_eq!(F::new(8).to_centered(), 8); // upper boundary
+    }
+
+    #[test]
+    fn test_to_centered_negative_side() {
+        // values in (q/2, q-1] map to v - q (negative)
+        // q = 17: 9 → -8, 16 → -1
+        assert_eq!(F::new(9).to_centered(), -8); // lower boundary of negatives
+        assert_eq!(F::new(12).to_centered(), -5);
+        assert_eq!(F::new(16).to_centered(), -1); // q - 1
+    }
+
+    #[test]
+    fn test_to_centered_full_range() {
+        // sanity: every value in [0, q) lands in [-(q/2), q/2]
+        let half = (Q / 2) as i64;
+        for i in 0..Q {
+            let c = F::new(i).to_centered();
+            assert!(
+                c >= -half && c <= half,
+                "Zq::new({i}).to_centered() = {c} outside [{}, {}]",
+                -half,
+                half,
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_centered_matches_python_formula() {
+        // Cross-check: v - q if v > q/2 else v
+        for i in 0..Q {
+            let expected = if i > Q / 2 {
+                (i as i64) - (Q as i64)
+            } else {
+                i as i64
+            };
+            assert_eq!(F::new(i).to_centered(), expected);
+        }
     }
 }

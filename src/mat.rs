@@ -19,11 +19,7 @@ impl<R> Mat<R> {
             "Mat::new requires all rows to have the same length",
         );
         let data = rows.into_iter().flatten().collect();
-        Self {
-            data,
-            nrows,
-            ncols,
-        }
+        Self { data, nrows, ncols }
     }
 
     pub fn from_flatten(nrows: usize, l: impl Into<Vec<R>>) -> Self {
@@ -31,12 +27,11 @@ impl<R> Mat<R> {
         let data: Vec<R> = l.into();
         let len_data = data.len();
         let ncols = len_data / nrows;
-        assert!(ncols * nrows == len_data, "len_data is not divisible by nrows");
-        Self {
-            data,
-            nrows,
-            ncols,
-        }
+        assert!(
+            ncols * nrows == len_data,
+            "len_data is not divisible by nrows"
+        );
+        Self { data, nrows, ncols }
     }
 
     pub fn from_fn(nrows: usize, ncols: usize, mut f: impl FnMut(usize, usize) -> R) -> Self {
@@ -46,11 +41,7 @@ impl<R> Mat<R> {
                 data.push(f(i, j));
             }
         }
-        Self {
-            data,
-            nrows,
-            ncols,
-        }
+        Self { data, nrows, ncols }
     }
 
     pub fn nrows(&self) -> usize {
@@ -77,19 +68,25 @@ impl<R: Clone> Mat<R> {
     pub fn col(&self, j: usize) -> Vec<R> {
         assert!(j < self.ncols, "col index out of bounds");
 
-        self.data.iter().skip(j).step_by(self.ncols).cloned().collect()
+        self.data
+            .iter()
+            .skip(j)
+            .step_by(self.ncols)
+            .cloned()
+            .collect()
     }
 
     /// A.augment(B) = [A | B]
-    pub fn augment(self, other: Self) -> Self {
+    pub fn augment(&self, other: &Self) -> Self {
         assert_eq!(self.nrows, other.nrows, "row mismatch");
         let new_ncols = self.ncols + other.ncols;
-        let mut data = Vec::with_capacity(self.nrows*new_ncols);
-        // Fill A into `data`
+        let mut data = Vec::with_capacity(self.nrows * new_ncols);
         for i in 0..self.nrows {
+            // Fill A into `data`
             for j in 0..self.ncols {
                 data.push(self[(i, j)].clone());
             }
+            // Fill B into `data`
             for j in 0..other.ncols {
                 data.push(other[(i, j)].clone());
             }
@@ -104,15 +101,15 @@ impl<R: Clone> Mat<R> {
 
     /// A.stack(B) = [A
     ///               B]
-    pub fn stack(self, other: Self) -> Self {
+    pub fn stack(&self, other: &Self) -> Self {
         assert_eq!(self.ncols, other.ncols, "col mismatch");
 
         let mut data = self.data.clone();
-        data.extend(other.data);
+        data.extend(other.data.clone());
         Self {
             data,
             nrows: self.nrows + other.nrows,
-            ncols: self.ncols
+            ncols: self.ncols,
         }
     }
 
@@ -242,28 +239,28 @@ mod tests {
 
     #[test]
     fn test_from_flatten() {
-        let data = [z(1), z(2) ,z(3), z(4)];
+        let data = [z(1), z(2), z(3), z(4)];
         let nrows = 2;
         let m = Mat::<F>::from_flatten(nrows, &data);
-        assert_eq!(&[m[(0,0)], m[(0,1)], m[(1,0)], m[(1,1)]], &data);
+        assert_eq!(&[m[(0, 0)], m[(0, 1)], m[(1, 0)], m[(1, 1)]], &data);
     }
 
     #[test]
     #[should_panic(expected = "len_data is not divisible by nrows")]
     fn test_from_flatten_panics_nrows_not_dividing() {
-        let data = [z(1), z(2) ,z(3), z(4)];
+        let data = [z(1), z(2), z(3), z(4)];
         let nrows = 3;
         let m = Mat::<F>::from_flatten(nrows, &data);
-        assert_eq!(&[m[(0,0)], m[(0,1)], m[(1,0)], m[(1,1)]], &data);
+        assert_eq!(&[m[(0, 0)], m[(0, 1)], m[(1, 0)], m[(1, 1)]], &data);
     }
 
     #[test]
     #[should_panic(expected = "nrows must not be zero")]
     fn test_from_flatten_panics_nrows_zero() {
-        let data = [z(1), z(2) ,z(3), z(4)];
+        let data = [z(1), z(2), z(3), z(4)];
         let nrows = 0;
         let m = Mat::<F>::from_flatten(nrows, &data);
-        assert_eq!(&[m[(0,0)], m[(0,1)], m[(1,0)], m[(1,1)]], &data);
+        assert_eq!(&[m[(0, 0)], m[(0, 1)], m[(1, 0)], m[(1, 1)]], &data);
     }
 
     // ─── Index / row / col ───
@@ -456,7 +453,6 @@ mod tests {
         assert_eq!(c[(0, 0)], r([0, 2, 0, 0]));
     }
 
-
     #[test]
     fn test_works_over_rq_ntt() {
         // Verify Mat<Rq<Q,D>> compiles and basic ops behave.
@@ -469,7 +465,7 @@ mod tests {
         // (1) * (X) + (X) * (1) = 2X
         assert_eq!(c.dimensions(), (1, 1));
         // 1*3+2*4 = 11
-        assert_eq!(c[(0,0)], r([11, 11, 11, 11]));
+        assert_eq!(c[(0, 0)], r([11, 11, 11, 11]));
     }
 
     // ─── stack ───
@@ -479,7 +475,7 @@ mod tests {
         // A: 2×3, B: 1×3 → 3×3
         let a = m(&[[1, 2, 3], [4, 5, 6]]);
         let b = m(&[[7, 8, 9]]);
-        let c = a.stack(b);
+        let c = a.stack(&b);
         assert_eq!(c.dimensions(), (3, 3));
         assert_eq!(c.row(0), &[z(1), z(2), z(3)]);
         assert_eq!(c.row(1), &[z(4), z(5), z(6)]);
@@ -490,7 +486,7 @@ mod tests {
     fn test_stack_preserves_ncols() {
         let a = m(&[[1, 2]]);
         let b = m(&[[3, 4], [5, 6]]);
-        let c = a.stack(b);
+        let c = a.stack(&b);
         assert_eq!(c.dimensions(), (3, 2));
     }
 
@@ -499,7 +495,7 @@ mod tests {
     fn test_stack_ncols_mismatch_panics() {
         let a = m(&[[1, 2, 3]]);
         let b = m(&[[4, 5]]);
-        let _ = a.stack(b);
+        let _ = a.stack(&b);
     }
 
     #[test]
@@ -507,7 +503,7 @@ mod tests {
         // 0×3 stack 2×3 → 2×3 (the zero matrix vanishes on top)
         let empty = Mat::<F>::from_fn(0, 3, |_, _| z(0));
         let b = m(&[[1, 2, 3], [4, 5, 6]]);
-        let c = empty.stack(b);
+        let c = empty.stack(&b);
         assert_eq!(c.dimensions(), (2, 3));
         assert_eq!(c.row(0), &[z(1), z(2), z(3)]);
         assert_eq!(c.row(1), &[z(4), z(5), z(6)]);
@@ -518,7 +514,7 @@ mod tests {
         // 2×3 stack 0×3 → 2×3 (the zero matrix vanishes on bottom)
         let a = m(&[[1, 2, 3], [4, 5, 6]]);
         let empty = Mat::<F>::from_fn(0, 3, |_, _| z(0));
-        let c = a.stack(empty);
+        let c = a.stack(&empty);
         assert_eq!(c.dimensions(), (2, 3));
         assert_eq!(c.row(0), &[z(1), z(2), z(3)]);
         assert_eq!(c.row(1), &[z(4), z(5), z(6)]);
@@ -529,7 +525,7 @@ mod tests {
         // 0×3 stack 0×3 → 0×3
         let a = Mat::<F>::from_fn(0, 3, |_, _| z(0));
         let b = Mat::<F>::from_fn(0, 3, |_, _| z(0));
-        let c = a.stack(b);
+        let c = a.stack(&b);
         assert_eq!(c.dimensions(), (0, 3));
     }
 
@@ -541,7 +537,7 @@ mod tests {
         //     [3 4]         [7 8]            [3 4 7 8]
         let a = m(&[[1, 2], [3, 4]]);
         let b = m(&[[5, 6], [7, 8]]);
-        let c = a.augment(b);
+        let c = a.augment(&b);
         assert_eq!(c.dimensions(), (2, 4));
         assert_eq!(c.row(0), &[z(1), z(2), z(5), z(6)]);
         assert_eq!(c.row(1), &[z(3), z(4), z(7), z(8)]);
@@ -549,9 +545,9 @@ mod tests {
 
     #[test]
     fn test_augment_different_widths() {
-        let a = m(&[[1], [2], [3]]);                  // 3 × 1
-        let b = m(&[[4, 5], [6, 7], [8, 9]]);         // 3 × 2
-        let c = a.augment(b);
+        let a = m(&[[1], [2], [3]]); // 3 × 1
+        let b = m(&[[4, 5], [6, 7], [8, 9]]); // 3 × 2
+        let c = a.augment(&b);
         assert_eq!(c.dimensions(), (3, 3));
         assert_eq!(c.row(0), &[z(1), z(4), z(5)]);
         assert_eq!(c.row(1), &[z(2), z(6), z(7)]);
@@ -563,6 +559,6 @@ mod tests {
     fn test_augment_nrows_mismatch_panics() {
         let a = m(&[[1, 2], [3, 4]]);
         let b = m(&[[5, 6]]);
-        let _ = a.augment(b);
+        let _ = a.augment(&b);
     }
 }

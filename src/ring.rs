@@ -64,6 +64,17 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
         }
     }
 
+    /// Get |r|_2^2
+    pub fn l2_norm_squared(&self) -> u64 {
+        self.coeffs
+            .iter()
+            .map(|&z| {
+                let a = z.to_centered();
+                (a * a) as u64
+            })
+            .sum()
+    }
+
     /// Reduce a polynomial (with up to 2D-1 coefficients) mod X^D + 1.
     fn reduce(full: &[Zq<Q>]) -> [Zq<Q>; D] {
         assert!(full.len() < 2 * D);

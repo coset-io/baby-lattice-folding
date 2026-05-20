@@ -19,7 +19,6 @@ pub fn setup<const Q: u64, const D: usize>(
     mat
 }
 
-
 pub fn commit<const Q: u64, const D: usize>(
     a: &[Vec<RqNtt<Q, D>>],
     z: &[RqNtt<Q, D>],
