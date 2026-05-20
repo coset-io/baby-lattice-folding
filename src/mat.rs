@@ -74,16 +74,46 @@ impl<R: Clone> Mat<R> {
     }
 
     /// Returns column `j` as an owned `Vec<R>`.
-    ///
-    /// Row-major storage means column `j`'s elements live at offsets
-    /// `j, j + ncols, j + 2*ncols, ...` — they are NOT contiguous, so
-    /// we cannot return a `&[R]` slice (a slice must be contiguous in
-    /// memory). That is why this method clones into an owned `Vec`
-    /// and why the bound `R: Clone` is required.
     pub fn col(&self, j: usize) -> Vec<R> {
         assert!(j < self.ncols, "col index out of bounds");
 
         self.data.iter().skip(j).step_by(self.ncols).cloned().collect()
+    }
+
+    /// A.augment(B) = [A | B]
+    pub fn augment(self, other: Self) -> Self {
+        assert_eq!(self.nrows, other.nrows, "row mismatch");
+        let new_ncols = self.ncols + other.ncols;
+        let mut data = Vec::with_capacity(self.nrows*new_ncols);
+        // Fill A into `data`
+        for i in 0..self.nrows {
+            for j in 0..self.ncols {
+                data.push(self[(i, j)].clone());
+            }
+            for j in 0..other.ncols {
+                data.push(other[(i, j)].clone());
+            }
+        }
+
+        Self {
+            data,
+            ncols: self.ncols + other.ncols,
+            nrows: self.nrows,
+        }
+    }
+
+    /// A.stack(B) = [A
+    ///               B]
+    pub fn stack(self, other: Self) -> Self {
+        assert_eq!(self.ncols, other.ncols, "col mismatch");
+
+        let mut data = self.data.clone();
+        data.extend(other.data);
+        Self {
+            data,
+            nrows: self.nrows + other.nrows,
+            ncols: self.ncols
+        }
     }
 
     pub fn transpose(&self) -> Self {
@@ -442,4 +472,97 @@ mod tests {
         assert_eq!(c[(0,0)], r([11, 11, 11, 11]));
     }
 
+    // ─── stack ───
+
+    #[test]
+    fn test_stack_basic() {
+        // A: 2×3, B: 1×3 → 3×3
+        let a = m(&[[1, 2, 3], [4, 5, 6]]);
+        let b = m(&[[7, 8, 9]]);
+        let c = a.stack(b);
+        assert_eq!(c.dimensions(), (3, 3));
+        assert_eq!(c.row(0), &[z(1), z(2), z(3)]);
+        assert_eq!(c.row(1), &[z(4), z(5), z(6)]);
+        assert_eq!(c.row(2), &[z(7), z(8), z(9)]);
+    }
+
+    #[test]
+    fn test_stack_preserves_ncols() {
+        let a = m(&[[1, 2]]);
+        let b = m(&[[3, 4], [5, 6]]);
+        let c = a.stack(b);
+        assert_eq!(c.dimensions(), (3, 2));
+    }
+
+    #[test]
+    #[should_panic(expected = "col mismatch")]
+    fn test_stack_ncols_mismatch_panics() {
+        let a = m(&[[1, 2, 3]]);
+        let b = m(&[[4, 5]]);
+        let _ = a.stack(b);
+    }
+
+    #[test]
+    fn test_stack_zero_rows_on_top() {
+        // 0×3 stack 2×3 → 2×3 (the zero matrix vanishes on top)
+        let empty = Mat::<F>::from_fn(0, 3, |_, _| z(0));
+        let b = m(&[[1, 2, 3], [4, 5, 6]]);
+        let c = empty.stack(b);
+        assert_eq!(c.dimensions(), (2, 3));
+        assert_eq!(c.row(0), &[z(1), z(2), z(3)]);
+        assert_eq!(c.row(1), &[z(4), z(5), z(6)]);
+    }
+
+    #[test]
+    fn test_stack_zero_rows_on_bottom() {
+        // 2×3 stack 0×3 → 2×3 (the zero matrix vanishes on bottom)
+        let a = m(&[[1, 2, 3], [4, 5, 6]]);
+        let empty = Mat::<F>::from_fn(0, 3, |_, _| z(0));
+        let c = a.stack(empty);
+        assert_eq!(c.dimensions(), (2, 3));
+        assert_eq!(c.row(0), &[z(1), z(2), z(3)]);
+        assert_eq!(c.row(1), &[z(4), z(5), z(6)]);
+    }
+
+    #[test]
+    fn test_stack_zero_rows_both() {
+        // 0×3 stack 0×3 → 0×3
+        let a = Mat::<F>::from_fn(0, 3, |_, _| z(0));
+        let b = Mat::<F>::from_fn(0, 3, |_, _| z(0));
+        let c = a.stack(b);
+        assert_eq!(c.dimensions(), (0, 3));
+    }
+
+    // ─── augment ───
+
+    #[test]
+    fn test_augment_basic() {
+        // A = [1 2]     B = [5 6]    A | B = [1 2 5 6]
+        //     [3 4]         [7 8]            [3 4 7 8]
+        let a = m(&[[1, 2], [3, 4]]);
+        let b = m(&[[5, 6], [7, 8]]);
+        let c = a.augment(b);
+        assert_eq!(c.dimensions(), (2, 4));
+        assert_eq!(c.row(0), &[z(1), z(2), z(5), z(6)]);
+        assert_eq!(c.row(1), &[z(3), z(4), z(7), z(8)]);
+    }
+
+    #[test]
+    fn test_augment_different_widths() {
+        let a = m(&[[1], [2], [3]]);                  // 3 × 1
+        let b = m(&[[4, 5], [6, 7], [8, 9]]);         // 3 × 2
+        let c = a.augment(b);
+        assert_eq!(c.dimensions(), (3, 3));
+        assert_eq!(c.row(0), &[z(1), z(4), z(5)]);
+        assert_eq!(c.row(1), &[z(2), z(6), z(7)]);
+        assert_eq!(c.row(2), &[z(3), z(8), z(9)]);
+    }
+
+    #[test]
+    #[should_panic(expected = "row mismatch")]
+    fn test_augment_nrows_mismatch_panics() {
+        let a = m(&[[1, 2], [3, 4]]);
+        let b = m(&[[5, 6]]);
+        let _ = a.augment(b);
+    }
 }
