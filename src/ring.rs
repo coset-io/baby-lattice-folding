@@ -46,6 +46,22 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
         Rq { coeffs }
     }
 
+    /// Exponentiation in R_q = Z_q[X]/(X^D + 1) (square-and-multiply).
+    pub fn pow(self, exp: u64) -> Self {
+        if exp == 0 {
+            Self::one()
+        } else {
+            // f(x) = g^x
+            //      = g*f(x/2)**2 if x \in odd else f(x/2)**2
+            let half = self.pow(exp / 2);
+            if exp.is_multiple_of(2) {
+                half * half
+            } else {
+                self * (half * half)
+            }
+        }
+    }
+
     pub fn coeffs(&self) -> &[Zq<Q>; D] {
         &self.coeffs
     }
@@ -323,6 +339,84 @@ mod tests {
     #[test]
     fn test_ring_mul_by_one() {
         assert_eq!(rp([3, 5, 7, 11]) * Ring4::one(), rp([3, 5, 7, 11]));
+    }
+
+    // ─── Rq pow tests ───
+
+    #[test]
+    fn test_ring_pow_zero_exp() {
+        // anything^0 == 1, including 0^0 (by convention here)
+        assert_eq!(rp([3, 5, 7, 11]).pow(0), Ring4::one());
+        assert_eq!(Ring4::zero().pow(0), Ring4::one());
+    }
+
+    #[test]
+    fn test_ring_pow_one_exp() {
+        let a = rp([3, 5, 7, 11]);
+        assert_eq!(a.pow(1), a);
+    }
+
+    #[test]
+    fn test_ring_pow_zero_base() {
+        // 0^n == 0 for n > 0
+        assert_eq!(Ring4::zero().pow(5), Ring4::zero());
+    }
+
+    #[test]
+    fn test_ring_pow_one_base() {
+        // 1^n == 1
+        assert_eq!(Ring4::one().pow(100), Ring4::one());
+    }
+
+    #[test]
+    fn test_ring_pow_square_matches_mul() {
+        let a = rp([1, 2, 3, 4]);
+        assert_eq!(a.pow(2), a * a);
+    }
+
+    #[test]
+    fn test_ring_pow_x_order_is_8() {
+        // X is the indeterminate; in R_q = Z_q[X]/(X^4+1):
+        //   X^4 ≡ -1, X^8 ≡ 1.  So ord(X) | 8, and it is exactly 8
+        //   (X^k for k<8 are 0/±monomials, not 1).
+        let x = rp([0, 1, 0, 0]);
+        assert_eq!(x.pow(4), -Ring4::one()); // X^4 = -1 = 16 mod 17
+        assert_eq!(x.pow(4), rp([16, 0, 0, 0]));
+        assert_eq!(x.pow(8), Ring4::one()); // back to 1
+        assert_eq!(x.pow(7), -x.pow(3)); // X^7 = X^4 · X^3 = -X^3
+        assert_eq!(x.pow(7), rp([0, 0, 0, 16]));
+    }
+
+    #[test]
+    fn test_ring_pow_matches_repeated_mul() {
+        // Cross-check pow against the naive product, across both parities of exp.
+        let a = rp([2, 1, 0, 3]);
+        let mut expected = Ring4::one();
+        for n in 0..10 {
+            assert_eq!(a.pow(n), expected, "mismatch at n={n}");
+            expected = expected * a;
+        }
+    }
+
+    #[test]
+    fn test_ring_pow_exponent_additive() {
+        // a^m · a^n == a^(m+n) — exercises commutativity + correctness together.
+        let a = rp([1, 2, 3, 4]);
+        for m in 0..5 {
+            for n in 0..5 {
+                assert_eq!(a.pow(m) * a.pow(n), a.pow(m + n), "m={m}, n={n}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_ring_pow_matches_ntt() {
+        // Bonus: pow in coefficient form ↔ pointwise pow in NTT form.
+        let a = rp([3, 1, 4, 1]);
+        let a_pow_5_direct = a.pow(5);
+        let a_ntt = a.ntt();
+        let a_ntt_pow_5 = RqNtt::<Q, D>::new(a_ntt.evals().map(|e| e.pow(5)));
+        assert_eq!(a_pow_5_direct.ntt(), a_ntt_pow_5);
     }
 
     // ─── RqNtt tests: pointwise ops in evaluation form ───

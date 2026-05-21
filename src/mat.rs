@@ -1,4 +1,3 @@
-
 use crate::ring::Ring;
 use std::ops::{Add, Index, Mul, Range};
 

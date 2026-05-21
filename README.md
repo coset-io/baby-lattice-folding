@@ -109,15 +109,20 @@ Outline:
     - [x] `Poly<Q>`: $Z_q[X]$, polynomial ring without reduction
     - [x] `Rq`:  $R_q = Z_q[X]/(X^D+1)$, polynomial quotient ring.
 - [x] NTT and polynomial multiplication
-- [x] Ajtai Commitment
-- [ ] Challenge spaces
-    - Fold challenge (Π^fold): ternary {-1,0,1} uniform (p=1/3 each). Maximises entropy for soundness. Not a strong subtractive set — SALSAA relies on large q making non-invertible differences negligible (~2^{-94} for q≈2^50). Ref: `salsaa/src/cyclotomic_ring.rs:319` (`random_biased`)
-    - JL projection (Π^{⊗RP}): ternary {-1,0,1} with p(0)=1/2, p(±1)=1/4 (two random bools). Only needs mean=0 + bounded variance for JL property. Sparser = faster. Ref: `salsaa/src/subroutines/project.rs:26` (`challenge_for_project`)
-- [ ] Sumcheck (over Rings)
-- [ ] MLE/LDE (over Rings)
-- [ ] Decomposition
+- [x] Matrix over Rq
+- [ ] RoKs:
+    - [x] join
+    - [x] batch
+    - [ ] decompose
+    - [ ] rp
+    - [ ] fold
 - [ ] Norm check
-- [ ] Folding
+- [ ] Whole folding chain of the RoKs
+- Future:
+    - [ ] R1CS support: currently only support raw `LinRelation`. Should have a way to support 
+    - [ ] Fiat–Shamir
+    - [ ] Precomputed NTT twiddle table for ζ^i — `src/ntt.rs` recomputes powers inside the butterfly; precompute once per `(Q, D)`.
+    - [ ] `rayon` for data parallelism — NTT butterflies, Ajtai row sums, `Rq` matmul, MLE eval. Behind a feature flag so the educational path stays single-threaded
 
 Reference:
  1. Latticefold: <https://github.com/NethermindEth/latticefold>
