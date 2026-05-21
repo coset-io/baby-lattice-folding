@@ -5,4 +5,6 @@ pub mod poly;
 pub mod relations;
 pub mod ring;
 pub mod rok;
+pub mod salsaa;
+pub mod sumcheck;
 pub mod zq;

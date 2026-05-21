@@ -83,10 +83,24 @@ impl<const Q: u64> Zq<Q> {
         Zq::new(rng.random_range(0..Q))
     }
 
+    pub fn random_low_norm(rng: &mut impl Rng) -> Self {
+        Zq::<Q>::from_centered(rng.random_range(-1..=1))
+    }
+
     pub fn to_centered(&self) -> i64 {
         let v = self.value as i64;
         let half = (Q / 2) as i64;
         if v > half { v - (Q as i64) } else { v }
+    }
+
+    pub fn from_centered(value: i64) -> Self {
+        if value >= 0 {
+            Self::new(value as u64)
+        } else {
+            // value.rem_euclid(Q as i64) guarantees arbitrarily large
+            // negative number becomes in the range [0, Q)
+            Self::new(value.rem_euclid(Q as i64) as u64)
+        }
     }
 }
 
@@ -288,5 +302,118 @@ mod tests {
             };
             assert_eq!(F::new(i).to_centered(), expected);
         }
+    }
+
+    // ─── from_centered ───
+
+    #[test]
+    fn test_from_centered_zero() {
+        // 0 → Zq(0)
+        assert_eq!(F::from_centered(0), F::new(0));
+    }
+
+    #[test]
+    fn test_from_centered_positive_side() {
+        // positives in [0, q/2] map to themselves
+        // q = 17, q/2 = 8, so 1..=8 stay as Zq(i)
+        assert_eq!(F::from_centered(1), F::new(1));
+        assert_eq!(F::from_centered(5), F::new(5));
+        assert_eq!(F::from_centered(8), F::new(8)); // upper boundary
+    }
+
+    #[test]
+    fn test_from_centered_negative_side() {
+        // negatives in [-q/2, -1] wrap to q + v
+        // q = 17:  -1 → 16,  -5 → 12,  -8 → 9
+        assert_eq!(F::from_centered(-1), F::new(16)); // upper boundary of negatives
+        assert_eq!(F::from_centered(-5), F::new(12));
+        assert_eq!(F::from_centered(-8), F::new(9)); // lower boundary
+    }
+
+    #[test]
+    fn test_from_centered_full_range() {
+        // sanity: every value in [-q/2, q/2] lands inside [0, q)
+        let half = (Q / 2) as i64;
+        for i in -half..=half {
+            let z = F::from_centered(i);
+            assert!(
+                z.value() < Q,
+                "from_centered({i}) = {} not in [0, {Q})",
+                z.value(),
+            );
+        }
+    }
+
+    #[test]
+    fn test_from_centered_inverse_of_to_centered() {
+        // Round-trip: from_centered(to_centered(z)) == z  for every z in [0, q).
+        for i in 0..Q {
+            let z = F::new(i);
+            assert_eq!(
+                F::from_centered(z.to_centered()),
+                z,
+                "from_centered ∘ to_centered failed on Zq({i})",
+            );
+        }
+    }
+
+    #[test]
+    fn test_to_centered_inverse_of_from_centered() {
+        // Reverse round-trip on the centered range: to_centered(from_centered(i)) == i.
+        let half = (Q / 2) as i64;
+        for i in -half..=half {
+            assert_eq!(
+                F::from_centered(i).to_centered(),
+                i,
+                "to_centered ∘ from_centered failed on {i}",
+            );
+        }
+    }
+
+    // ─── random_low_norm ───
+
+    #[test]
+    fn test_random_low_norm_in_ternary_set() {
+        // Every sample (centered) must be in {-1, 0, 1}. Catches an off-by-one
+        // in the range (e.g. `0..=2` would leak 2; `-2..=1` would leak -2).
+        let mut rng = rand::rng();
+        for _ in 0..1000 {
+            let c = F::random_low_norm(&mut rng).to_centered();
+            assert!(
+                c == -1 || c == 0 || c == 1,
+                "random_low_norm produced centered value {c} ∉ {{-1, 0, 1}}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_random_low_norm_covers_all_three_values() {
+        // All three values must be reachable. Catches half-open mistakes like
+        // `-1..1` (would never emit +1) or `0..=1` (would never emit -1).
+        // p = 1/3 each → P(any value missing after 1000 samples) ≈ 3·(2/3)^1000 ≈ 0.
+        let mut rng = rand::rng();
+        let mut seen_neg = false;
+        let mut seen_zero = false;
+        let mut seen_pos = false;
+        for _ in 0..1000 {
+            match F::random_low_norm(&mut rng).to_centered() {
+                -1 => seen_neg = true,
+                0 => seen_zero = true,
+                1 => seen_pos = true,
+                other => panic!("random_low_norm produced unexpected {other}"),
+            }
+        }
+        assert!(
+            seen_neg,
+            "random_low_norm never produced -1 in 1000 samples"
+        );
+        assert!(
+            seen_zero,
+            "random_low_norm never produced 0 in 1000 samples"
+        );
+        assert!(
+            seen_pos,
+            "random_low_norm never produced +1 in 1000 samples"
+        );
     }
 }
