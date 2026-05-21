@@ -1,5 +1,7 @@
+use rand::rand_core::block;
+
 use crate::ring::Ring;
-use std::ops::{Add, Index, Mul};
+use std::ops::{Add, Index, Mul, Range};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mat<R> {
@@ -118,6 +120,20 @@ impl<R: Clone> Mat<R> {
             self.data[j * self.ncols + i].clone()
         })
     }
+
+    /// Return a new Mat containing the rectangular region `rows × cols`.
+    ///
+    /// Both ranges are half-open (`start..end`). Panics if the end of either
+    /// range exceeds the corresponding dimension.
+    pub fn submatrix(&self, rows: Range<usize>, cols: Range<usize>) -> Self {
+        assert!(rows.end <= self.nrows && cols.end <= self.ncols, "submatrix OOB");
+        Mat::<R>::from_fn(
+            rows.end - rows.start,
+            cols.end - cols.start,
+            // i \in [0, nrows), j \in [0, ncols)
+            |i, j| self[(i + rows.start, j + cols.start)].clone()
+        )
+    }
 }
 
 impl<R> Index<(usize, usize)> for Mat<R> {
@@ -136,6 +152,33 @@ impl<R: Ring> Mat<R> {
 
     pub fn identity(n: usize) -> Self {
         Mat::from_fn(n, n, |i, j| if i == j { R::one() } else { R::zero() })
+    }
+
+    /// Build a block-diagonal matrix from the supplied blocks. Off-diagonal
+    /// entries are filled with `R::zero()`.
+    ///
+    /// Example: `block_diagonal(&[I_1, I_2, I_1])` is the 4×4 identity.
+    pub fn block_diagonal(blocks: &[Mat<R>]) -> Self {
+        let nrows_new: usize  = blocks.iter().map(|x| x.nrows).sum();
+        let ncols_new: usize = blocks.iter().map(|x| x.ncols).sum();
+        let mut data: Vec<R> = vec![R::zero();nrows_new * ncols_new];
+        let mut cur_start_row: usize = 0;
+        let mut cur_start_col: usize = 0;
+        // Fill in each b in the diagonal of `data`.
+        for b in blocks.iter() {
+            for i in 0..b.nrows {
+                for j in 0..b.ncols {
+                    data[(cur_start_row + i) * ncols_new + cur_start_col + j] = b[(i, j)].clone();
+                }
+            }
+            cur_start_row += b.nrows;
+            cur_start_col += b.ncols;
+        }
+        Self {
+            data,
+            nrows: nrows_new,
+            ncols: ncols_new,
+        }
     }
 }
 
@@ -560,5 +603,111 @@ mod tests {
         let a = m(&[[1, 2], [3, 4]]);
         let b = m(&[[5, 6]]);
         let _ = a.augment(&b);
+    }
+
+    // ─── submatrix ───
+
+    #[test]
+    fn test_submatrix_basic() {
+        // [1 2 3]
+        // [4 5 6]
+        // [7 8 9]   sub(1..3, 1..3) = [[5 6], [8 9]]
+        let mat = m(&[[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
+        let sub = mat.submatrix(1..3, 1..3);
+        assert_eq!(sub.dimensions(), (2, 2));
+        assert_eq!(sub[(0, 0)], z(5));
+        assert_eq!(sub[(0, 1)], z(6));
+        assert_eq!(sub[(1, 0)], z(8));
+        assert_eq!(sub[(1, 1)], z(9));
+    }
+
+    #[test]
+    fn test_submatrix_full() {
+        let mat = m(&[[1, 2], [3, 4]]);
+        let sub = mat.submatrix(0..2, 0..2);
+        assert_eq!(sub, mat);
+    }
+
+    #[test]
+    fn test_submatrix_single_row() {
+        let mat = m(&[[1, 2, 3], [4, 5, 6]]);
+        let sub = mat.submatrix(1..2, 0..3);
+        assert_eq!(sub.dimensions(), (1, 3));
+        assert_eq!(sub.row(0), &[z(4), z(5), z(6)]);
+    }
+
+    #[test]
+    fn test_submatrix_single_col() {
+        let mat = m(&[[1, 2, 3], [4, 5, 6]]);
+        let sub = mat.submatrix(0..2, 1..2);
+        assert_eq!(sub.dimensions(), (2, 1));
+        assert_eq!(sub[(0, 0)], z(2));
+        assert_eq!(sub[(1, 0)], z(5));
+    }
+
+    #[test]
+    #[should_panic(expected = "submatrix OOB")]
+    fn test_submatrix_row_oob_panics() {
+        let mat = m(&[[1, 2], [3, 4]]);
+        let _ = mat.submatrix(0..3, 0..2); // row end > nrows
+    }
+
+    #[test]
+    #[should_panic(expected = "submatrix OOB")]
+    fn test_submatrix_col_oob_panics() {
+        let mat = m(&[[1, 2], [3, 4]]);
+        let _ = mat.submatrix(0..2, 0..3); // col end > ncols
+    }
+
+    // ─── block_diagonal ───
+
+    #[test]
+    fn test_block_diagonal_three_identities_equals_identity() {
+        // diag(I_1, I_2, I_1) is the 4×4 identity (block_diag of identity blocks).
+        let bd = Mat::<F>::block_diagonal(&[
+            Mat::<F>::identity(1),
+            Mat::<F>::identity(2),
+            Mat::<F>::identity(1),
+        ]);
+        assert_eq!(bd, Mat::<F>::identity(4));
+    }
+
+    #[test]
+    fn test_block_diagonal_mixed_dims() {
+        // diag(2×3 block, 1×2 block) → 3×5 matrix
+        let a = m(&[[1, 2, 3], [4, 5, 6]]); // 2×3
+        let b = m(&[[7, 8]]);                // 1×2
+        let bd = Mat::<F>::block_diagonal(&[a, b]);
+
+        assert_eq!(bd.dimensions(), (3, 5));
+
+        // top-left 2×3 = a
+        assert_eq!(bd[(0, 0)], z(1));
+        assert_eq!(bd[(0, 2)], z(3));
+        assert_eq!(bd[(1, 0)], z(4));
+        assert_eq!(bd[(1, 2)], z(6));
+
+        // top-right 2×2 = zeros
+        assert_eq!(bd[(0, 3)], z(0));
+        assert_eq!(bd[(0, 4)], z(0));
+        assert_eq!(bd[(1, 3)], z(0));
+        assert_eq!(bd[(1, 4)], z(0));
+
+        // bottom-left 1×3 = zeros
+        assert_eq!(bd[(2, 0)], z(0));
+        assert_eq!(bd[(2, 1)], z(0));
+        assert_eq!(bd[(2, 2)], z(0));
+
+        // bottom-right 1×2 = b
+        assert_eq!(bd[(2, 3)], z(7));
+        assert_eq!(bd[(2, 4)], z(8));
+    }
+
+    #[test]
+    fn test_block_diagonal_single_block() {
+        // diag(A) == A (degenerate case)
+        let a = m(&[[1, 2], [3, 4]]);
+        let bd = Mat::<F>::block_diagonal(&[a.clone()]);
+        assert_eq!(bd, a);
     }
 }
