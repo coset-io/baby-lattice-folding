@@ -53,6 +53,10 @@ impl<R> Mat<R> {
         Self { data, nrows, ncols }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &R> {
+        self.data.iter()
+    }
+
     pub fn nrows(&self) -> usize {
         self.nrows
     }
@@ -218,6 +222,7 @@ impl<R: Ring> Add for Mat<R> {
 impl<R: Ring> Mul for Mat<R> {
     type Output = Self;
 
+    /// Matrix multiplication
     fn mul(self, rhs: Self) -> Self {
         assert_eq!(
             self.ncols, rhs.nrows,
@@ -233,6 +238,17 @@ impl<R: Ring> Mul for Mat<R> {
                 sum = sum + self.data[i * k + l] * rhs.data[l * m + j];
             }
             sum
+        })
+    }
+}
+
+impl<R: Ring> Mul<R> for Mat<R> {
+    type Output = Self;
+
+    /// Scalar multiplication
+    fn mul(self, rhs: R) -> Self {
+        Mat::from_fn(self.nrows, self.ncols, |i, j| {
+            self.data[i * self.ncols + j] * rhs
         })
     }
 }
@@ -591,6 +607,88 @@ mod tests {
         assert_eq!(c.dimensions(), (1, 1));
         // 1*3+2*4 = 11
         assert_eq!(c[(0, 0)], r([11, 11, 11, 11]));
+    }
+
+    // ─── Scalar Mul (Mat * R) ───
+
+    #[test]
+    fn test_scalar_mul_2x2() {
+        // [1 2] * 3 = [3  6]
+        // [3 4]       [9 12]
+        let a = m(&[[1, 2], [3, 4]]);
+        let expected = m(&[[3, 6], [9, 12]]);
+        assert_eq!(a * z(3), expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_with_mod_reduction() {
+        // Every entry × 4, mod 17: 5·4=20→3, 9·4=36→2, 13·4=52→1
+        let a = m(&[[5, 9], [13, 0]]);
+        let expected = m(&[[3, 2], [1, 0]]);
+        assert_eq!(a * z(4), expected);
+    }
+
+    #[test]
+    fn test_scalar_mul_by_zero_yields_zero_matrix() {
+        let a = m(&[[3, 5], [7, 11]]);
+        let (nrows, ncols) = a.dimensions();
+        assert_eq!(a * z(0), Mat::<F>::zero(nrows, ncols));
+    }
+
+    #[test]
+    fn test_scalar_mul_by_one_is_identity() {
+        // c=1 leaves the matrix unchanged (acts as ring identity entry-wise).
+        let a = m(&[[3, 5, 7], [11, 13, 2]]);
+        assert_eq!(a.clone() * z(1), a);
+    }
+
+    #[test]
+    fn test_scalar_mul_rectangular_shape_preserved() {
+        // Scalar mul never changes dimensions — only entry values.
+        let a = m(&[[1, 2, 3], [4, 5, 6]]);
+        let result = a.clone() * z(2);
+        assert_eq!(result.dimensions(), a.dimensions());
+    }
+
+    #[test]
+    fn test_scalar_mul_distributes_over_add() {
+        // c · (A + B) == c·A + c·B
+        let a = m(&[[1, 2], [3, 4]]);
+        let b = m(&[[5, 6], [7, 8]]);
+        let c = z(3);
+        let lhs = (a.clone() + b.clone()) * c;
+        let rhs = (a * c) + (b * c);
+        assert_eq!(lhs, rhs);
+    }
+
+    #[test]
+    fn test_scalar_mul_compatible_with_matrix_mul() {
+        // (c · A) · B == c · (A · B) — scalar slides through matrix mul.
+        let a = m(&[[1, 2], [3, 4]]);
+        let b = m(&[[5, 6], [7, 8]]);
+        let c = z(3);
+        let lhs = (a.clone() * c) * b.clone();
+        let rhs = (a * b) * c;
+        assert_eq!(lhs, rhs);
+    }
+
+    #[test]
+    fn test_scalar_mul_over_rq() {
+        // Mat<Rq<Q,D>> * Rq<Q,D>: every poly entry multiplied by an Rq scalar.
+        // (1 + X) entries scaled by 2 → (2 + 2X) entries.
+        let r = |c: [u64; D]| Ring4::new(c.map(z));
+        let a = Mat::new(vec![
+            vec![r([1, 1, 0, 0]), r([1, 1, 0, 0])],
+            vec![r([1, 1, 0, 0]), r([1, 1, 0, 0])],
+        ]);
+        let scalar = r([2, 0, 0, 0]); // constant poly 2
+        let result = a * scalar;
+        let expected_entry = r([2, 2, 0, 0]); // 2 · (1 + X) = 2 + 2X
+        for i in 0..2 {
+            for j in 0..2 {
+                assert_eq!(result[(i, j)], expected_entry, "mismatch at ({i}, {j})");
+            }
+        }
     }
 
     // ─── stack ───

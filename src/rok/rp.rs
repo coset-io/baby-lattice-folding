@@ -126,6 +126,7 @@ pub fn rok_rp<const Q: u64, const D: usize>(
 mod tests {
     use super::*;
     use crate::mat::Mat;
+    use crate::relations::{LinInstance, LinWitness};
     use crate::ring::Rq;
     use crate::zq::Zq;
 

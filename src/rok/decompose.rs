@@ -1,14 +1,27 @@
 //! b-ary decomposition of a witness matrix into low-norm pieces.
 
-use crate::{mat::Mat, relations::LinRelation, ring::Rq, zq::Zq};
+use crate::{
+    mat::Mat,
+    relations::{LinInstance, LinRelation, LinWitness},
+    ring::Rq,
+    zq::Zq,
+};
 
 /// ℓ = ⌈log_b(2β + 1)⌉ — number of base-b digits needed to encode the range
 /// [-β, β]. Panics on β = 0 (range is degenerate).
-pub fn get_l(_beta: u64, _b: u64) -> usize {
-    todo!()
+pub fn get_l(beta: u64, b: u64) -> usize {
+    assert!(beta > 0, "beta must > 0: beta={}", beta);
+    assert!(b > 0, "b must > 0: b={}", b);
+    let mut v = 2 * beta + 1;
+    let mut l: usize = 0;
+    while v > 0 {
+        v /= b;
+        l += 1
+    }
+    l
 }
 
-/// Balanced b-ary decomposition of a Z_q element into ℓ digits in [-⌊b/2⌋, ⌊b/2⌋].
+/// Balanced b-ary decomposition of a Z_q element into l digits in [-⌊b/2⌋, ⌊b/2⌋].
 ///
 /// E.g. b = 2:  7  → [ 1,  1,  1,  0, ...]
 ///              -7 → [-1, -1, -1,  0, ...]
@@ -17,16 +30,43 @@ pub fn get_l(_beta: u64, _b: u64) -> usize {
 /// Strategy: take the centered representative, peel off digits via repeated
 /// mod-b. If a digit exceeds b/2, subtract b from it and carry +b into the
 /// remaining value, keeping every digit balanced.
-pub fn balanced_b_ary_decompose_zq<const Q: u64>(_f: Zq<Q>, _b: u64, _l: usize) -> Vec<Zq<Q>> {
-    todo!()
+pub fn balanced_b_ary_decompose_zq<const Q: u64>(f: Zq<Q>, b: u64, l: usize) -> Vec<Zq<Q>> {
+    assert!(b > 0);
+    assert!(l > 0);
+    let f_ct = f.to_centered();
+    let sign = if f_ct < 0 { -1 } else { 1 };
+    let mut f_abs = f_ct.abs();
+    let b = b as i64;
+
+    let mut coeffs: Vec<Zq<Q>> = Vec::new();
+    for _ in 0..l {
+        let mut r = f_abs % b;
+        // We want each digit \in [-b/2, b/2]
+        if r > b / 2 {
+            // r > b/2..., need to make it back in range
+            // Make this digit becomes negative so it's within [-b/2, 0]
+            r -= b;
+            // Since we deduct r by b, add it back to f_abs as "carry"
+            f_abs += b;
+        }
+        coeffs.push(Zq::<Q>::from_centered(sign * r));
+        f_abs /= b;
+    }
+    coeffs
 }
 
 /// Inverse of `balanced_b_ary_decompose_zq`: Σ_i coeffs[i] · b^i.
-pub fn compose_zq<const Q: u64>(_coeffs: &[Zq<Q>], _b: u64) -> Zq<Q> {
-    todo!()
+pub fn compose_zq<const Q: u64>(_coeffs: &[Zq<Q>], b: u64) -> Zq<Q> {
+    Zq::<Q>::new(
+        _coeffs
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| c.value() * b.pow(i as u32))
+            .sum(),
+    )
 }
 
-/// Decompose witness W into ℓ matrices V_0, ..., V_{ℓ-1} such that
+/// Decompose witness W into l matrices V_0, ..., V_{l-1} such that
 /// W = Σ_k b^k · V_k, with each V_k's polynomial coefficients in [-⌊b/2⌋, ⌊b/2⌋].
 ///
 /// Per-entry decomposition runs `balanced_b_ary_decompose_zq` on every
@@ -34,13 +74,38 @@ pub fn compose_zq<const Q: u64>(_coeffs: &[Zq<Q>], _b: u64) -> Zq<Q> {
 ///   r = 4 + 5x + 3x^2  →  for each coefficient c at exponent `exp`:
 ///     c·x^{exp} = (d_0·b^0 + d_1·b^1 + ...) · x^{exp}
 ///              = d_0·b^0·x^{exp}  +  d_1·b^1·x^{exp}  +  ...
-///                  V_0                 V_1            ...
+///                   in V_0               in V_1            ...
 pub fn decompose_w<const Q: u64, const D: usize>(
-    _w: &Mat<Rq<Q, D>>,
-    _b: u64,
-    _l: usize,
+    w: &Mat<Rq<Q, D>>,
+    b: u64,
+    l: usize,
 ) -> Vec<Mat<Rq<Q, D>>> {
-    todo!()
+    // Prepare V_i, i \in [l], so we can add the decomposed number into their
+    // corresponding digit.
+    let mut vs: Vec<Vec<Rq<Q, D>>> = Vec::with_capacity(l);
+    for _ in 0..l {
+        vs.push(Vec::with_capacity(w.nrows() * w.ncols()));
+    }
+    for i in 0..w.nrows() {
+        for j in 0..w.ncols() {
+            let r = w[(i, j)];
+            // coefficient in the term c_0 + ... + c_k * x^k + ... + c_{D-1} x^{d-1}
+            let mut cur_bit_polys = vec![[Zq::<Q>::zero(); D]; l];
+            for (k, &c_k) in r.coeffs().iter().enumerate() {
+                let c_k_decomposed = balanced_b_ary_decompose_zq::<Q>(c_k, b, l);
+                // c_k = d_0 * b^0 + ... + d_t * b^t + ... + d_{l-1} * b^{l-1}
+                for (t, &d_t) in c_k_decomposed.iter().enumerate() {
+                    cur_bit_polys[t][k] = cur_bit_polys[t][k] + d_t;
+                }
+            }
+            for (t, &d_t) in cur_bit_polys.iter().enumerate() {
+                vs[t].push(Rq::<Q, D>::new(d_t))
+            }
+        }
+    }
+    vs.iter()
+        .map(|x| Mat::<Rq<Q, D>>::from_flatten(w.nrows(), x.clone()))
+        .collect()
 }
 
 /// Π^b-decomp: decomposes the witness W into ℓ low-norm chunks (V_0, ..., V_{ℓ-1})
@@ -56,41 +121,81 @@ pub fn rok_decompose<const Q: u64, const D: usize>(
     let beta = lin.beta();
     let l = get_l(beta, b);
 
+    let h = &lin.instance.h;
+    let f_com = &lin.instance.f_com;
+    let f_eval = &lin.instance.f_eval;
+    let m = &lin.m();
+
     //
     // Prover
     //
-    let h = &lin.instance.h;
     let f = lin.instance.f();
     let w = &lin.witness.w;
+
     // Vs = decompose_w(W, b, l)
     // Zs = [H * F * V_k for V_k in Vs]
+    let vs = decompose_w(w, b, l);
+    let zs: Vec<_> = vs
+        .iter()
+        .map(|v_i| h.clone() * f.clone() * v_i.clone())
+        .collect();
 
     // V_tilde = [V_0 || ... || V_{l-1}]
+    let v_tilde = vs
+        .into_iter()
+        .reduce(|acc, v| acc.augment(&v))
+        .expect("vs non-empty");
+
     // Z_tilde = [Z_0 || ... || Z_{l-1}]
+    let z_tilde = zs
+        .clone()
+        .into_iter()
+        .reduce(|acc, v| acc.augment(&v))
+        .expect("zs non-empty");
 
     //
     // Verifier
     //
-    let y = &lin.instance.y;
     // Y ?= Σ_{i=0}^{l-1} b^i · Z_i  — verifier recomputes and checks.
+    let y = &lin.instance.y;
+    let rhs: Mat<Rq<Q, D>> = zs
+        .into_iter()
+        .enumerate()
+        .map(|(i, z_i)| {
+            // b^i as a ring element
+            let mut coeffs = [Zq::<Q>::zero(); D];
+            coeffs[0] = Zq::<Q>::new(b.pow(i as u32));
+            // b^i * z_i
+            z_i * Rq::<Q, D>::new(coeffs)
+        })
+        .reduce(|acc, term| acc + term)
+        .expect("zs non-empty (l>=1)");
+    assert_eq!(y.clone(), rhs, "y != rhs: y = {y:?}, rhs = {rhs:?}");
 
     //
-    // Both
+    // Check relation holds
     //
     // Per-coefficient bound after balanced b-ary decomp is [-b/2, b/2].
     //   column ℓ_2^2  <=  m · d · (b//2)^2
     //   β            <=  ⌊b/2⌋ · √(m · d)
     // Uses isqrt so it stays integer (floor when m·d is not a square).
     // new_beta = (b // 2) * isqrt(m * d)
-    let _ = (l, h, f, w, y, b);
+    let new_beta = (b / 2) * ((m * D) as u64).isqrt();
 
-    todo!()
+    // H F V_tilde = [Z_0 || ... || Z_{l-1}]
+    //             = [H F V_0 || ... || H F V_{l-1}]
+    //             = Z_tilde
+    LinRelation::new(
+        LinInstance::new(h.clone(), f_com.clone(), f_eval.clone(), z_tilde, new_beta),
+        LinWitness::new(v_tilde),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::mat::Mat;
+    use crate::relations::{LinInstance, LinWitness};
     use crate::ring::Rq;
     use crate::zq::Zq;
 
@@ -213,7 +318,7 @@ mod tests {
     fn test_decompose_zq_roundtrip() {
         for b in [2u64, 3] {
             for beta in [1u64, 4, 7] {
-                let l = get_l(beta, b);
+                let l = get_l(beta, b) as usize;
                 for f_int in -(beta as i64)..=(beta as i64) {
                     let f = zq(f_int);
                     let coeffs = balanced_b_ary_decompose_zq::<Q>(f, b, l);
@@ -245,7 +350,7 @@ mod tests {
         ]);
         let b = 2u64;
         let beta = 4u64;
-        let l = get_l(beta, b);
+        let l = get_l(beta, b) as usize;
         let v = decompose_w(&w, b, l);
 
         // Shape: ℓ matrices, each same dim as W.
@@ -275,7 +380,7 @@ mod tests {
         let w: Mat<R> = Mat::new(vec![vec![c(7), -mono(3, 1)], vec![mono(5, 2), R::zero()]]);
         let b = 2u64;
         let beta = 7u64;
-        let l = get_l(beta, b);
+        let l = get_l(beta, b) as usize;
         let v = decompose_w(&w, b, l);
 
         let bound = (b / 2) as i64;

@@ -154,6 +154,7 @@ pub fn rok_norm<const Q: u64, const D: usize>(lin: &LinRelation<Q, D>) -> LinRel
 mod tests {
     use super::*;
     use crate::mat::Mat;
+    use crate::relations::{LinInstance, LinWitness};
     use crate::ring::Rq;
     use crate::zq::Zq;
 
