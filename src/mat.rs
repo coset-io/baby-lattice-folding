@@ -1,4 +1,3 @@
-use rand::rand_core::block;
 
 use crate::ring::Ring;
 use std::ops::{Add, Index, Mul, Range};
@@ -11,9 +10,18 @@ pub struct Mat<R> {
 }
 
 impl<R> Mat<R> {
+    /// Build a matrix from row vectors.
+    ///
+    /// Panics on empty outer vec — the column count is undeterminable
+    /// from an empty input. For 0-row matrices, use `Mat::zero(0, ncols)`
+    /// or `Mat::from_fn(0, ncols, _)` so `ncols` is explicit.
+    /// `vec![vec![], vec![]]` (M rows of width 0) is fine — ncols = 0.
     pub fn new(rows: impl Into<Vec<Vec<R>>>) -> Self {
         let rows: Vec<Vec<R>> = rows.into();
-        assert!(!rows.is_empty(), "Mat::new requires at least one row");
+        assert!(
+            !rows.is_empty(),
+            "Mat::new: empty rows — use Mat::zero(0, ncols) for 0×ncols",
+        );
         let nrows = rows.len();
         let ncols = rows[0].len();
         assert!(
@@ -126,12 +134,15 @@ impl<R: Clone> Mat<R> {
     /// Both ranges are half-open (`start..end`). Panics if the end of either
     /// range exceeds the corresponding dimension.
     pub fn submatrix(&self, rows: Range<usize>, cols: Range<usize>) -> Self {
-        assert!(rows.end <= self.nrows && cols.end <= self.ncols, "submatrix OOB");
+        assert!(
+            rows.end <= self.nrows && cols.end <= self.ncols,
+            "submatrix OOB"
+        );
         Mat::<R>::from_fn(
             rows.end - rows.start,
             cols.end - cols.start,
             // i \in [0, nrows), j \in [0, ncols)
-            |i, j| self[(i + rows.start, j + cols.start)].clone()
+            |i, j| self[(i + rows.start, j + cols.start)].clone(),
         )
     }
 }
@@ -159,16 +170,16 @@ impl<R: Ring> Mat<R> {
     ///
     /// Example: `block_diagonal(&[I_1, I_2, I_1])` is the 4×4 identity.
     pub fn block_diagonal(blocks: &[Mat<R>]) -> Self {
-        let nrows_new: usize  = blocks.iter().map(|x| x.nrows).sum();
+        let nrows_new: usize = blocks.iter().map(|x| x.nrows).sum();
         let ncols_new: usize = blocks.iter().map(|x| x.ncols).sum();
-        let mut data: Vec<R> = vec![R::zero();nrows_new * ncols_new];
+        let mut data: Vec<R> = vec![R::zero(); nrows_new * ncols_new];
         let mut cur_start_row: usize = 0;
         let mut cur_start_col: usize = 0;
         // Fill in each b in the diagonal of `data`.
         for b in blocks.iter() {
             for i in 0..b.nrows {
                 for j in 0..b.ncols {
-                    data[(cur_start_row + i) * ncols_new + cur_start_col + j] = b[(i, j)].clone();
+                    data[(cur_start_row + i) * ncols_new + cur_start_col + j] = b[(i, j)];
                 }
             }
             cur_start_row += b.nrows;
@@ -268,9 +279,17 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "at least one row")]
+    #[should_panic(expected = "empty rows")]
     fn test_new_empty_panics() {
+        // Empty outer Vec is ambiguous (ncols undeterminable) — must panic.
         let _: Mat<F> = Mat::new(Vec::<Vec<F>>::new());
+    }
+
+    #[test]
+    fn test_new_zero_cols_from_empty_inner_rows() {
+        // M × 0: outer has rows, inner rows have width 0 → ncols = 0 is determined.
+        let mat: Mat<F> = Mat::new(vec![vec![], vec![], vec![]]);
+        assert_eq!(mat.dimensions(), (3, 0));
     }
 
     #[test]
@@ -278,6 +297,70 @@ mod tests {
         let by_new = m(&[[0, 1, 2], [10, 11, 12]]);
         let by_fn = Mat::<F>::from_fn(2, 3, |i, j| z((i * 10 + j) as u64));
         assert_eq!(by_new, by_fn);
+    }
+
+    // ─── 0-dim matrices ───
+
+    #[test]
+    fn test_from_fn_zero_rows() {
+        // 0 × m: closure never invoked, but ncols is preserved.
+        let mat = Mat::<F>::from_fn(0, 5, |_, _| panic!("must not be called"));
+        assert_eq!(mat.dimensions(), (0, 5));
+    }
+
+    #[test]
+    fn test_from_fn_zero_cols() {
+        let mat = Mat::<F>::from_fn(3, 0, |_, _| panic!("must not be called"));
+        assert_eq!(mat.dimensions(), (3, 0));
+    }
+
+    #[test]
+    fn test_zero_with_zero_rows() {
+        let mat = Mat::<F>::zero(0, 4);
+        assert_eq!(mat.dimensions(), (0, 4));
+    }
+
+    #[test]
+    fn test_zero_with_zero_cols() {
+        let mat = Mat::<F>::zero(2, 0);
+        assert_eq!(mat.dimensions(), (2, 0));
+    }
+
+    #[test]
+    fn test_stack_onto_zero_row_keeps_ncols() {
+        // 0 × 3 stacked on 2 × 3 = 2 × 3 (caller can drop the empty top half).
+        let top = Mat::<F>::zero(0, 3);
+        let bot = m(&[[1, 2, 3], [4, 5, 6]]);
+        let stacked = top.stack(&bot);
+        assert_eq!(stacked.dimensions(), (2, 3));
+        assert_eq!(stacked, bot);
+    }
+
+    #[test]
+    #[should_panic(expected = "col mismatch")]
+    fn test_stack_zero_x_zero_onto_real_matrix_panics() {
+        // 0 × 0 ≠ "any ncols" — stack must reject this.
+        let zero_zero = Mat::<F>::from_fn(0, 0, |_, _| unreachable!());
+        let real = m(&[[1, 2, 3]]);
+        let _ = zero_zero.stack(&real);
+    }
+
+    #[test]
+    fn test_augment_with_zero_col_keeps_nrows() {
+        // (2 × 0) augment (2 × 3) = 2 × 3.
+        let left = Mat::<F>::zero(2, 0);
+        let right = m(&[[1, 2, 3], [4, 5, 6]]);
+        let aug = left.augment(&right);
+        assert_eq!(aug.dimensions(), (2, 3));
+        assert_eq!(aug, right);
+    }
+
+    #[test]
+    fn test_transpose_zero_row() {
+        // (0 × 5)^T = (5 × 0).
+        let mat = Mat::<F>::zero(0, 5);
+        let t = mat.transpose();
+        assert_eq!(t.dimensions(), (5, 0));
     }
 
     #[test]
@@ -676,7 +759,7 @@ mod tests {
     fn test_block_diagonal_mixed_dims() {
         // diag(2×3 block, 1×2 block) → 3×5 matrix
         let a = m(&[[1, 2, 3], [4, 5, 6]]); // 2×3
-        let b = m(&[[7, 8]]);                // 1×2
+        let b = m(&[[7, 8]]); // 1×2
         let bd = Mat::<F>::block_diagonal(&[a, b]);
 
         assert_eq!(bd.dimensions(), (3, 5));

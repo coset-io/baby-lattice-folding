@@ -6,8 +6,6 @@
 //!
 //! where F = F_com stacked over F_eval, and ‖·‖₂ is the column l_2 norm
 //! over the concatenated coefficient vector of each column of W.
-//!
-//! Reference: SALSAA paper §3–4. Python: `06_salsaa/relations.py`.
 
 use crate::mat::Mat;
 use crate::ring::Rq;
@@ -67,7 +65,7 @@ impl<const Q: u64, const D: usize> LinInstance<Q, D> {
         self.h.ncols()
     }
 
-    /// n_top — cols of H = rows of F.
+    /// n_top — \bar F, number of rows of the commitment matrix.
     pub fn n_top(&self) -> usize {
         self.f_com.nrows()
     }
@@ -113,38 +111,37 @@ impl<const Q: u64, const D: usize> LinWitness<Q, D> {
     }
 }
 
-/// A LinInstance plus a verified LinWitness. Construction must enforce:
-///   1. Dimension consistency (H, F, W, Y all line up)
-///   2. Algebraic relation:   H · (F · W) = Y
-///   3. l_2 norm bound:        max_i ‖w_i‖₂ ≤ β
-///
-/// `new` returns `Self` here for symmetry with Python. You can refactor
-/// to `Result<Self, RelError>` (Ch 9 practice) if you want explicit
-/// error variants instead of panic.
-#[derive(Debug, Clone)]
-pub struct LinRelation<const Q: u64, const D: usize> {
-    pub instance: LinInstance<Q, D>,
-    pub witness: LinWitness<Q, D>,
-}
-
+/// l2 norm squared of a column is the sum of the norm squared of all ring elements
 fn col_l2_norm_squared<const Q: u64, const D: usize>(col: &[Rq<Q, D>]) -> u64 {
     col.iter().map(|r| r.l2_norm_squared()).sum()
 }
 
-fn max_col_l2_norm_squared<const Q: u64, const D: usize>(w: &Mat<Rq<Q, D>>) -> u64 {
+/// l2 norm of a matrix is the max norm among its columns.
+/// this function returns the max l2 norm **squared**
+fn mat_l2_norm_squared<const Q: u64, const D: usize>(w: &Mat<Rq<Q, D>>) -> u64 {
     (0..w.ncols())
         .map(|j| col_l2_norm_squared(&w.col(j)))
         .max()
         .unwrap_or(0)
 }
 
+/// A LinInstance plus a verified LinWitness. Construction must enforce:
+///   1. Dimension consistency (H, F, W, Y all line up)
+///   2. Algebraic relation:   H · (F · W) = Y
+///   3. l_2 norm bound:        max_i ‖w_i‖₂ ≤ β
+#[derive(Debug, Clone)]
+pub struct LinRelation<const Q: u64, const D: usize> {
+    pub instance: LinInstance<Q, D>,
+    pub witness: LinWitness<Q, D>,
+}
+
 impl<const Q: u64, const D: usize> LinRelation<Q, D> {
     pub fn new(instance: LinInstance<Q, D>, witness: LinWitness<Q, D>) -> Self {
         // 1. l_2 norm of W must be <= \beta
-        let l2_norm_squared_w = max_col_l2_norm_squared(&witness.w);
+        let l2_norm_squared_w = mat_l2_norm_squared(&witness.w);
         let l2_norm_bound_squared = instance.beta * instance.beta;
         assert!(
-            l2_norm_squared_w < l2_norm_bound_squared,
+            l2_norm_squared_w <= l2_norm_bound_squared,
             "exceeded norm bound: actual norm squared={}, norm bound={}",
             l2_norm_squared_w,
             l2_norm_bound_squared,
@@ -216,12 +213,6 @@ mod tests {
             .collect();
         Mat::new(v)
     }
-
-    // NOTE: Initial Σ^lin has F_eval = 0 × m. Current `Mat::new` requires
-    // at least one row, so 0-row matrices can't be constructed yet. All
-    // tests below use F_eval with ≥ 1 row to dodge that limitation. When
-    // you decide how to handle the empty case (Option, Mat::empty, etc.),
-    // add a test for the initial state.
 
     // ─── LinWitness ───
 
@@ -346,8 +337,73 @@ mod tests {
         let _ = LinRelation::new(inst, wit);
     }
 
-    // NOTE: norm-bound violation test (||w_i||_2 > β) is deferred — it
-    // needs `Zq::centered()` (mapping v ∈ [0, q) → signed [-q/2, q/2])
-    // which isn't on Zq yet. Once that exists, add a `should_panic` test
-    // putting a column of large-coefficient entries into W with β = 1.
+    // ─── norm-bound checks (the ‖·‖₂ branch of LinRelation::new) ───
+
+    #[test]
+    fn test_relation_norm_at_boundary_constructs() {
+        // ‖w‖² == β². Bound is non-strict (≤) so this MUST pass.
+        // W = [[c(1)]]: coeffs [1, 0, 0, 0]. centered norm² = 1. β = 1 → β² = 1.
+        // F = F_com = [[1]] (no eval block), so F · W = [[1]] = Y.
+        let h = Mat::<R>::identity(1);
+        let f_com = mat(&[[1]]);
+        let f_eval = Mat::<R>::zero(0, 1);
+        let w = mat(&[[1]]);
+        let y = mat(&[[1]]);
+
+        let inst = LinInstance::new(h, f_com, f_eval, y, 1);
+        let wit = LinWitness::new(w);
+        let _ = LinRelation::new(inst, wit); // must not panic
+    }
+
+    #[test]
+    #[should_panic(expected = "exceeded norm bound")]
+    fn test_relation_norm_violation_panics() {
+        // ‖w‖² > β². W = [[c(5)]]: centered coeffs [5, 0, 0, 0], norm² = 25.
+        // β = 1 → β² = 1. 25 > 1 ⇒ must panic.
+        // Y = F · W = c(5) so the algebraic relation alone would still hold.
+        let h = Mat::<R>::identity(1);
+        let f_com = mat(&[[1]]);
+        let f_eval = Mat::<R>::zero(0, 1);
+        let w = mat(&[[5]]);
+        let y = mat(&[[5]]);
+
+        let inst = LinInstance::new(h, f_com, f_eval, y, 1);
+        let wit = LinWitness::new(w);
+        let _ = LinRelation::new(inst, wit);
+    }
+
+    // ─── initial state: empty evaluation block ───
+
+    #[test]
+    fn test_instance_initial_state_empty_f_eval() {
+        // F_eval = 0 × m means "no evaluation rows yet". This is the
+        // initial Σ^lin shape before any with_extra_eval call. F should
+        // equal F_com (stacking 0 rows on top changes nothing).
+        let h = Mat::<R>::identity(2);
+        let f_com = mat(&[[1, 2], [3, 4]]);
+        let f_eval = Mat::<R>::zero(0, 2); // explicit 0 × 2 — ncols carried
+        let y = Mat::<R>::zero(2, 1);
+        let inst = LinInstance::new(h, f_com.clone(), f_eval, y, 10);
+
+        assert_eq!(inst.n_hat(), 2);
+        assert_eq!(inst.n(), 2); // F_com.nrows + F_eval.nrows = 2 + 0
+        assert_eq!(inst.n_top(), 2); // F_com.nrows
+        assert_eq!(inst.m(), 2);
+        assert_eq!(inst.f(), f_com, "F == F_com when F_eval is empty");
+    }
+
+    #[test]
+    fn test_relation_with_empty_f_eval_constructs() {
+        // End-to-end: a satisfied Σ^lin with the initial empty F_eval.
+        let h = Mat::<R>::identity(2);
+        let f_com = mat(&[[1, 2], [3, 4]]);
+        let f_eval = Mat::<R>::zero(0, 2);
+        let w = mat(&[[1], [1]]);
+        // F · W = [[1+2], [3+4]] = [[3], [7]] (constant-poly entries)
+        let y = mat(&[[3], [7]]);
+
+        let inst = LinInstance::new(h, f_com, f_eval, y, 10);
+        let wit = LinWitness::new(w);
+        let _ = LinRelation::new(inst, wit); // must not panic
+    }
 }
