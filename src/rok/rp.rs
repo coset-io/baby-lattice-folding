@@ -1,16 +1,21 @@
-//! Π^rp: Johnson–Lindenstrauss-style random projection that reduces
-//! witness dimension via a sparse ternary challenge matrix.
+//! Π^rp: Prover proves W satisfying FW=Y with |w| <= beta using
+//! Johnson-Lindenstrauss random projection.
 
 use rand::Rng;
 
-use crate::{mat::Mat, relations::LinRelation, ring::Rq};
+use crate::{mat::Mat, relations::{LinRelation, LinInstance, LinWitness}, ring::Rq, zq::Zq};
 
-/// Sample a single JL entry: χ(0) = 1/2, χ(±1) = 1/4 (two random bits).
-/// Sparser than the ternary distribution used in rok_fold (which is p = 1/3 each).
-/// The JL property only needs mean = 0 and bounded variance, so the sparse
-/// distribution is cheaper at no soundness cost.
-fn sample_j_entry<const Q: u64, const D: usize>(_rng: &mut impl Rng) -> Rq<Q, D> {
-    todo!()
+/// Sample a single JL entry: χ(0) = 1/2, χ(±1) = 1/4.
+/// Difference from the ternary distribution in rok_fold
+/// 1. Probabilities are different, which is p = 1/3 each in rok_fold.
+/// 2. In rok_fold it's a full degree Rq, e.g. c = 1-x+...+x^{D-1}. But here
+///     it's only a constant, e.g. c = 1.
+fn sample_j_entry<const Q: u64, const D: usize>(rng: &mut impl Rng) -> Rq<Q, D> {
+    // let there be two 0 so χ(0)=1/2, and ±1 stay as is so χ(±1) = 1/4
+    let choices = [0, 0, 1, -1];
+    let s = choices[rng.random_range(0..=4)];
+    // Rq is a poly that has only the constant term.
+    Rq::<Q,D>::from_zq(Zq::<Q>::from_centered(s))
 }
 
 /// Sample J ∈ R_q^{n_rp × m_rp} with entries from `sample_j_entry`.
@@ -19,16 +24,17 @@ fn sample_j<const Q: u64, const D: usize>(
     m_rp: usize,
     rng: &mut impl Rng,
 ) -> Mat<Rq<Q, D>> {
-    Mat::<Rq<Q, D>>::from_fn(n_rp, m_rp, |_i, _j| sample_j_entry(rng))
+    Mat::<Rq<Q, D>>::from_fn(n_rp, m_rp, |_, _| sample_j_entry(rng))
 }
 
 /// Column-major flatten of a matrix.
 ///
 /// E.g. W = [[1, 2, 3],
 ///           [4, 5, 6]]
-///      vec(W) = [1, 4, 2, 5, 3, 6]
-fn vec_col_major<const Q: u64, const D: usize>(_w: &Mat<Rq<Q, D>>) -> Vec<Rq<Q, D>> {
-    todo!()
+///      vec(W) = [1, 4, 2, 5, 3, 6]^T
+fn vec_col_major<const Q: u64, const D: usize>(w: &Mat<Rq<Q, D>>) -> Mat<Rq<Q, D>> {
+    let data = w.transpose().iter().cloned().collect::<Vec<_>>();
+    Mat::from_flatten(data.len(), data)
 }
 
 /// Π^⊗RP: prove W satisfies F·W = Y with ‖W‖ ≤ β using Johnson–Lindenstrauss
@@ -38,23 +44,34 @@ fn vec_col_major<const Q: u64, const D: usize>(_w: &Mat<Rq<Q, D>>) -> Vec<Rq<Q, 
 ///   - `lin_w_hat`: projected ((I, F̂, ŷ), ŵ) — width collapsed to r=1,
 ///                  m shrinks to m' = m/r, β grows to m_rp · β.
 ///
+/// Prover proves W satisfying FW=Y with |W| <= beta using Johnson-Lindenstrauss
+/// random projection.
+/// Returns 2 relations
+/// - lin_orig:  original `lin` + "\hat W commitment is r"
+/// - lin_w_hat: Commitment of projected W and it's within a new norm bound \hat beta
+/// two relations are chained by `r_vec`, and RLC is used to compress new statements.
+/// 
 /// Precondition: m_rp == n_rp · r and m is divisible by m_rp.
+/// 
+/// Parameters selections:
+///     - n_rp: security param, \omega(\lambda)
+///     - m_rp: =O(1)*n_rp, too large -> commitment size too big
 pub fn rok_rp<const Q: u64, const D: usize>(
     lin: &LinRelation<Q, D>,
     n_rp: usize,
     m_rp: usize,
     rng: &mut impl Rng,
 ) -> (LinRelation<Q, D>, LinRelation<Q, D>) {
-    let n_hat = lin.n_hat();
     let m = lin.m();
-    let n = lin.n();
     let n_top = lin.n_top();
     let r = lin.r();
     let f_com = &lin.instance.f_com;
     let f_eval = &lin.instance.f_eval;
     let h = &lin.instance.h;
     let y = &lin.instance.y;
-    let w = &lin.witness.w;
+    let w: &Mat<Rq<Q, D>> = &lin.witness.w;
+
+    let m_prime = m / r;
 
     assert_eq!(
         m_rp,
@@ -66,60 +83,109 @@ pub fn rok_rp<const Q: u64, const D: usize>(
     // Verifier
     //
     // 1. Sample J and send it to Prover.
-    let m_prime = m / r;
-    let _j = sample_j::<Q, D>(n_rp, m_rp, rng);
+    let j = sample_j::<Q, D>(n_rp, m_rp, rng);
 
     //
     // Prover
     //
     // 1. Calculate Ĵ = I_{m / m_rp} ⊗ J.
-    let _size_i = m / m_rp;
+    let size_i = m / m_rp;
     // I = identity_matrix(Rq, size_i)
+    let identity_matrix = Mat::<Rq<Q,D>>::identity(size_i);
     // J_hat = I.tensor_product(J)
-    // assert J_hat.nrows() == size_i * n_rp
-    // assert J_hat.ncols() == size_i * m_rp
+    let j_hat = identity_matrix.tensor_product(&j);
 
     // 2. Ŵ = Ĵ · W   ∈ R_q^{m' × r}
+    let w_hat = j_hat.clone() * w.clone();
 
     // 3. flatten Ŵ to ŵ ∈ R_q^m (column-major)
+    let w_hat_flattened = vec_col_major(w);
 
     // 4. Commit ŵ to save proof size: z̄ = F_com · ŵ
-    //    — send `z̄` to Verifier.
+    let z_bar = f_com.clone() * w_hat_flattened.clone();
+    // Send `z̄` to Verifier.
 
     //
     // Verifier
     //
     // 4. Sample c from R_q. Send c to Prover.
+    let c = Rq::<Q,D>::random(rng);
+    // Send c to Prover
 
-    //
-    // Prover
+    // 
+    // Both
     //
     // 5–8. c_0 = c^{m_prime}, c_1 = c
     //      c_0_vec = (c_0^0, c_0^1, ..., c_0^{r-1})
     //      c_1_vec = (c_1^0, c_1^1, ..., c_1^{m_prime - 1})
     //      c_vec   = c_0_vec ⊗ c_1_vec   ∈ R_q^m
+    let c_0 = c.pow(m_prime as u64);
+    let c_1 = c;
+    let c_0_vec = Mat::from_fn(
+        1,
+        r,
+        |i, j| {
+            // (0..r).map(|i| c_0.pow(i as u64)).collect()
+            c_0.pow((i*r + j) as u64)
+        }
+    );
+    let c_1_vec = Mat::from_fn(
+        1,
+        r,
+        |i, j| {
+            // (0..r).map(|i| c_0.pow(i as u64)).collect()
+            c_1.pow((i*r + j) as u64)
+        }
+    );
+    let c_vec = c_0_vec.tensor_product(&c_1_vec);
 
+    // 
+    // Prover
+    //
     // 9. r_vec = c_1_vec · Ŵ
-    //    — send `r_vec` to Verifier.
+    let r_vec = c_1_vec.clone() * w_hat;
+    // Send `r_vec` to Verifier.
 
     //
-    // Both Prover and Verifier
+    // Both Prover and Verifier (Check relations hold)
     //
     // 10.1. Build the augmented original:
-    //   H̃ = [[H,  0],          F̃ = F_com.stack(F_eval.stack(c_1_vec · Ĵ))
-    //        [0,  I]],          Ỹ = Y.stack(r_vec)
-    //   (lin_orig wraps these with the original W.)
+    //  H_tilde [F              ] W = [Y]
+    //          [c_1_vec * J_hat]     [r] 
+
+    //  H_tilde = [[H,  0],
+    //             [0,  1]],   
+    let h_tilde = Mat::block_diagonal(&[h.clone(), Mat::identity(1)]);
+
+    // F_eval_tilde = F_eval.stack(c_1_vec * J_hat)
+    let f_eval_new = f_eval.stack(&(c_1_vec * j_hat));
+    // Y_tilde = Y.stack(r_vec)
+    let y_tilde = y.stack(&r_vec);
+
+    let lin_orig = LinRelation::new(
+        LinInstance::new(h_tilde, f_com.clone(), f_eval_new, y_tilde, lin.beta()),
+        LinWitness::new(w.clone()),
+    );
 
     // 10.2. Build the projected ŵ-side relation:
-    //   F̂_eval = [c_vec]                       (1 row, m cols)
-    //   ŷ      = column[z̄ ‖ c_0_vec · r_vec]  (n_top + 1 rows, 1 col)
-    //   H_hat  = I_{n_top + 1}
+    //       I [F_top] w_hat = [z_bar      ]
+    //         [c_vec]         [c_0_vec * r]
     //   β_hat  = m_rp · β
-    let _new_beta = (m_rp as u64) * lin.beta();
+    let f_eval_hat = f_com.stack(&c_vec);
+    let beta_hat = (m_rp as u64) * lin.beta();
+    let y_hat = z_bar.stack(&(c_0_vec * r_vec));
+    let lin_w_hat = LinRelation::new(
+        LinInstance::new(
+            Mat::identity(n_top+1),
+            f_com.clone(),
+            f_eval_hat,
+            y_hat,
+            beta_hat
+        ),
+        LinWitness::new(w_hat_flattened),
+    );
 
-    let _ = (n_hat, m, n, n_top, r, f_com, f_eval, h, y, w, m_prime);
-
-    todo!()
+    (lin_orig, lin_w_hat)
 }
 
 #[cfg(test)]

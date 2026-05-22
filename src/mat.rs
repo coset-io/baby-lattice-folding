@@ -68,15 +68,15 @@ impl<R> Mat<R> {
     pub fn dimensions(&self) -> (usize, usize) {
         (self.nrows, self.ncols)
     }
-}
 
-impl<R: Clone> Mat<R> {
     pub fn row(&self, i: usize) -> &[R] {
         assert!(i < self.nrows, "row index out of bounds");
         let start = i * self.ncols;
         &self.data[start..start + self.ncols]
     }
+}
 
+impl<R: Clone> Mat<R> {
     /// Returns column `j` as an owned `Vec<R>`.
     pub fn col(&self, j: usize) -> Vec<R> {
         assert!(j < self.ncols, "col index out of bounds");
@@ -127,7 +127,7 @@ impl<R: Clone> Mat<R> {
     }
 
     pub fn transpose(&self) -> Self {
-        Mat::from_fn(self.ncols, self.nrows, |i, j| {
+        Self::from_fn(self.ncols, self.nrows, |i, j| {
             self.data[j * self.ncols + i].clone()
         })
     }
@@ -141,7 +141,7 @@ impl<R: Clone> Mat<R> {
             rows.end <= self.nrows && cols.end <= self.ncols,
             "submatrix OOB"
         );
-        Mat::<R>::from_fn(
+        Self::from_fn(
             rows.end - rows.start,
             cols.end - cols.start,
             // i \in [0, nrows), j \in [0, ncols)
@@ -194,6 +194,26 @@ impl<R: Ring> Mat<R> {
             ncols: ncols_new,
         }
     }
+
+    /// Tensor product of two matrices. A: m_a x n_a, B: m_b x n_b
+    /// A ⊗ B: (m_a * m_b) x (n_a * n_b)
+    /// E.g. 
+    /// A = [[1]   B = [[3, 4]]
+    ///      [3]]
+    /// A ⊗ B = [[3, 4],
+    ///          [9, 12]]
+    pub fn tensor_product(&self, other: &Self) -> Self {
+        let new_nrows = self.nrows * other.nrows;
+        let new_ncols = self.ncols * other.ncols;
+        Self::from_fn(new_nrows, new_ncols, |i,j| {
+            let i_in_self = i / other.nrows;
+            let j_in_self = j / other.ncols;
+            let i_in_other = i % other.nrows;
+            let j_in_other = j % other.ncols;
+            // self[(i_in_self, j_in_self)] * other[(i_in_other, j_in_other)]
+            self.data[i_in_self * self.ncols + j_in_self] * other.data[i_in_other * other.ncols + j_in_other]
+        })
+    }
 }
 
 impl<R: Ring> Add for Mat<R> {
@@ -242,13 +262,14 @@ impl<R: Ring> Mul for Mat<R> {
     }
 }
 
-impl<R: Ring> Mul<R> for Mat<R> {
+impl<R: std::ops::Mul<Output=R> + Clone> Mul<R> for Mat<R> {
     type Output = Self;
 
     /// Scalar multiplication
     fn mul(self, rhs: R) -> Self {
         Mat::from_fn(self.nrows, self.ncols, |i, j| {
-            self.data[i * self.ncols + j] * rhs
+            // TODO: a lot of clone() ...
+            self.data[i * self.ncols + j].clone() * rhs.clone()
         })
     }
 }
@@ -889,5 +910,74 @@ mod tests {
         let a = m(&[[1, 2], [3, 4]]);
         let bd = Mat::<F>::block_diagonal(&[a.clone()]);
         assert_eq!(bd, a);
+    }
+
+    // ─── tensor_product (Kronecker product) ───
+
+    /// Docstring example: A = [[1],[3]], B = [[3,4]] → A⊗B = [[3,4],[9,12]].
+    #[test]
+    fn test_tensor_product_docstring_example() {
+        let a = m(&[[1], [3]]);
+        let b = m(&[[3, 4]]);
+        let result = a.tensor_product(&b);
+        assert_eq!(result, m(&[[3, 4], [9, 12]]));
+    }
+
+    /// Dim arithmetic: (A.rows × A.cols) ⊗ (B.rows × B.cols)
+    ///                  = (A.rows·B.rows) × (A.cols·B.cols)
+    #[test]
+    fn test_tensor_product_dimensions() {
+        let a = m(&[[1, 2, 3], [4, 5, 6]]); // 2×3
+        let b = m(&[[1, 2], [3, 4]]);       // 2×2
+        let result = a.tensor_product(&b);   // expect 4×6
+        assert_eq!(result.dimensions(), (4, 6));
+    }
+
+    /// 1×1 identity is the tensor identity on either side.
+    #[test]
+    fn test_tensor_product_identity_one_is_neutral() {
+        let a = m(&[[1, 2, 3], [4, 5, 6]]);
+        let i1 = Mat::<F>::identity(1);
+        assert_eq!(i1.tensor_product(&a), a, "I_1 ⊗ A = A");
+        assert_eq!(a.tensor_product(&i1), a, "A ⊗ I_1 = A");
+    }
+
+    /// I_n ⊗ A == block_diag(A, A, ..., A) with n copies — exactly the structure
+    /// `rok_rp` builds for Ĵ = I_{m/m_rp} ⊗ J. Cross-checks tensor_product against
+    /// block_diagonal (two independent impls).
+    #[test]
+    fn test_tensor_product_identity_left_equals_block_diagonal() {
+        let a = m(&[[1, 2], [3, 4]]);
+        let n = 3;
+        let i_n = Mat::<F>::identity(n);
+        let lhs = i_n.tensor_product(&a);
+        let rhs = Mat::<F>::block_diagonal(&[a.clone(), a.clone(), a]);
+        assert_eq!(lhs, rhs);
+    }
+
+    /// Associativity: (A ⊗ B) ⊗ C == A ⊗ (B ⊗ C).
+    #[test]
+    fn test_tensor_product_associativity() {
+        let a = m(&[[1, 2]]);       // 1×2
+        let b = m(&[[3], [4]]);     // 2×1
+        let c = m(&[[5, 6]]);       // 1×2
+        let lhs = a.tensor_product(&b).tensor_product(&c);
+        let rhs = a.tensor_product(&b.tensor_product(&c));
+        assert_eq!(lhs, rhs);
+    }
+
+    /// Mixed-product identity: (A ⊗ B)(C ⊗ D) == (A·C) ⊗ (B·D).
+    /// This is the algebraic property that makes Kronecker products useful —
+    /// catches any subtle index bug in the impl.
+    #[test]
+    fn test_tensor_product_mixed_product() {
+        let a = m(&[[1, 2], [3, 4]]);
+        let b = m(&[[5, 6], [7, 8]]);
+        let c = m(&[[1, 0], [0, 1]]);
+        let d = m(&[[2, 0], [0, 3]]);
+        // dim: A.cols == C.rows, B.cols == D.rows  ✓
+        let lhs = a.clone().tensor_product(&b.clone()) * c.clone().tensor_product(&d.clone());
+        let rhs = (a * c).tensor_product(&(b * d));
+        assert_eq!(lhs, rhs);
     }
 }
