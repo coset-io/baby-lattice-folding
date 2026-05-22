@@ -66,6 +66,17 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
         &self.coeffs
     }
 
+    /// Constant polynomial: only the degree-0 coefficient is non-zero.
+    pub fn from_zq(v: Zq<Q>) -> Self {
+        let mut coeffs = [Zq::<Q>::zero(); D];
+        coeffs[0] = v;
+        Self::new(coeffs)
+    }
+
+    pub fn from_u64(v: u64) -> Self {
+        Self::from_zq(Zq::<Q>::new(v))
+    }
+
     pub fn random(rng: &mut impl Rng) -> Self {
         Rq {
             coeffs: std::array::from_fn(|_| Zq::random(rng)),
@@ -149,6 +160,14 @@ impl<const Q: u64, const D: usize> Mul for Rq<Q, D> {
         Rq {
             coeffs: Self::reduce(&new_coeffs),
         }
+    }
+}
+
+impl<const Q: u64, const D: usize> Mul<Zq<Q>> for Rq<Q, D> {
+    type Output = Self;
+
+    fn mul(self, rhs: Zq<Q>) -> Self {
+        Rq::new(self.coeffs.map(|x| x*rhs))
     }
 }
 

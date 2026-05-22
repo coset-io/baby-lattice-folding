@@ -56,14 +56,13 @@ pub fn balanced_b_ary_decompose_zq<const Q: u64>(f: Zq<Q>, b: u64, l: usize) -> 
 }
 
 /// Inverse of `balanced_b_ary_decompose_zq`: Σ_i coeffs[i] · b^i.
-pub fn compose_zq<const Q: u64>(_coeffs: &[Zq<Q>], b: u64) -> Zq<Q> {
-    Zq::<Q>::new(
-        _coeffs
-            .iter()
-            .enumerate()
-            .map(|(i, &c)| c.value() * b.pow(i as u32))
-            .sum(),
-    )
+pub fn compose_zq<const Q: u64>(coeffs: &[Zq<Q>], b: u64) -> Zq<Q> {
+    let b_zq = Zq::new(b);
+    coeffs
+        .iter()
+        .enumerate()
+        .map(|(i, &c)| c * b_zq.pow(i as u64))
+        .fold(Zq::<Q>::zero(), |acc, x| acc + x)
 }
 
 /// Decompose witness W into l matrices V_0, ..., V_{l-1} such that
@@ -124,7 +123,7 @@ pub fn rok_decompose<const Q: u64, const D: usize>(
     let h = &lin.instance.h;
     let f_com = &lin.instance.f_com;
     let f_eval = &lin.instance.f_eval;
-    let m = &lin.m();
+    let m = lin.m();
 
     //
     // Prover
@@ -158,15 +157,12 @@ pub fn rok_decompose<const Q: u64, const D: usize>(
     //
     // Y ?= Σ_{i=0}^{l-1} b^i · Z_i  — verifier recomputes and checks.
     let y = &lin.instance.y;
-    let rhs: Mat<Rq<Q, D>> = zs
-        .into_iter()
-        .enumerate()
-        .map(|(i, z_i)| {
-            // b^i as a ring element
-            let mut coeffs = [Zq::<Q>::zero(); D];
-            coeffs[0] = Zq::<Q>::new(b.pow(i as u32));
-            // b^i * z_i
-            z_i * Rq::<Q, D>::new(coeffs)
+    let rhs: Mat<Rq<Q, D>> = zs.into_iter()
+        .scan(Zq::<Q>::one(), |b_pow, z_i| {
+            let term = z_i * Rq::<Q, D>::from_zq(*b_pow);
+            // b^{i+1} = b^i * b, for next iteration
+            *b_pow = *b_pow * Zq::<Q>::new(b);
+            Some(term)
         })
         .reduce(|acc, term| acc + term)
         .expect("zs non-empty (l>=1)");
