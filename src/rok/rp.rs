@@ -3,7 +3,12 @@
 
 use rand::Rng;
 
-use crate::{mat::Mat, relations::{LinRelation, LinInstance, LinWitness}, ring::Rq, zq::Zq};
+use crate::{
+    mat::Mat,
+    relations::{LinInstance, LinRelation, LinWitness},
+    ring::Rq,
+    zq::Zq,
+};
 
 /// Sample a single JL entry: χ(0) = 1/2, χ(±1) = 1/4.
 /// Difference from the ternary distribution in rok_fold
@@ -13,9 +18,9 @@ use crate::{mat::Mat, relations::{LinRelation, LinInstance, LinWitness}, ring::R
 fn sample_j_entry<const Q: u64, const D: usize>(rng: &mut impl Rng) -> Rq<Q, D> {
     // let there be two 0 so χ(0)=1/2, and ±1 stay as is so χ(±1) = 1/4
     let choices = [0, 0, 1, -1];
-    let s = choices[rng.random_range(0..=4)];
+    let s = choices[rng.random_range(0..choices.len())];
     // Rq is a poly that has only the constant term.
-    Rq::<Q,D>::from_zq(Zq::<Q>::from_centered(s))
+    Rq::<Q, D>::from_zq(Zq::<Q>::from_centered(s))
 }
 
 /// Sample J ∈ R_q^{n_rp × m_rp} with entries from `sample_j_entry`.
@@ -47,12 +52,12 @@ fn vec_col_major<const Q: u64, const D: usize>(w: &Mat<Rq<Q, D>>) -> Mat<Rq<Q, D
 /// Prover proves W satisfying FW=Y with |W| <= beta using Johnson-Lindenstrauss
 /// random projection.
 /// Returns 2 relations
-/// - lin_orig:  original `lin` + "\hat W commitment is r"
+/// - lin_orig:  original `lin` + "W projects to r via c_1*j_hat"
 /// - lin_w_hat: Commitment of projected W and it's within a new norm bound \hat beta
 /// two relations are chained by `r_vec`, and RLC is used to compress new statements.
-/// 
+///
 /// Precondition: m_rp == n_rp · r and m is divisible by m_rp.
-/// 
+///
 /// Parameters selections:
 ///     - n_rp: security param, \omega(\lambda)
 ///     - m_rp: =O(1)*n_rp, too large -> commitment size too big
@@ -91,7 +96,7 @@ pub fn rok_rp<const Q: u64, const D: usize>(
     // 1. Calculate Ĵ = I_{m / m_rp} ⊗ J.
     let size_i = m / m_rp;
     // I = identity_matrix(Rq, size_i)
-    let identity_matrix = Mat::<Rq<Q,D>>::identity(size_i);
+    let identity_matrix = Mat::<Rq<Q, D>>::identity(size_i);
     // J_hat = I.tensor_product(J)
     let j_hat = identity_matrix.tensor_product(&j);
 
@@ -99,7 +104,7 @@ pub fn rok_rp<const Q: u64, const D: usize>(
     let w_hat = j_hat.clone() * w.clone();
 
     // 3. flatten Ŵ to ŵ ∈ R_q^m (column-major)
-    let w_hat_flattened = vec_col_major(w);
+    let w_hat_flattened = vec_col_major(&w_hat);
 
     // 4. Commit ŵ to save proof size: z̄ = F_com · ŵ
     let z_bar = f_com.clone() * w_hat_flattened.clone();
@@ -109,10 +114,10 @@ pub fn rok_rp<const Q: u64, const D: usize>(
     // Verifier
     //
     // 4. Sample c from R_q. Send c to Prover.
-    let c = Rq::<Q,D>::random(rng);
+    let c = Rq::<Q, D>::random(rng);
     // Send c to Prover
 
-    // 
+    //
     // Both
     //
     // 5–8. c_0 = c^{m_prime}, c_1 = c
@@ -121,25 +126,18 @@ pub fn rok_rp<const Q: u64, const D: usize>(
     //      c_vec   = c_0_vec ⊗ c_1_vec   ∈ R_q^m
     let c_0 = c.pow(m_prime as u64);
     let c_1 = c;
-    let c_0_vec = Mat::from_fn(
-        1,
-        r,
-        |i, j| {
-            // (0..r).map(|i| c_0.pow(i as u64)).collect()
-            c_0.pow((i*r + j) as u64)
-        }
-    );
-    let c_1_vec = Mat::from_fn(
-        1,
-        r,
-        |i, j| {
-            // (0..r).map(|i| c_0.pow(i as u64)).collect()
-            c_1.pow((i*r + j) as u64)
-        }
-    );
+    let c_0_vec = Mat::from_fn(1, r, |i, j| {
+        // (0..r).map(|i| c_0.pow(i as u64)).collect()
+        c_0.pow((i * r + j) as u64)
+    });
+    let c_1_vec = Mat::from_fn(1, m_prime, |i, j| {
+        // (0..r).map(|i| c_0.pow(i as u64)).collect()
+        c_1.pow((i * r + j) as u64)
+    });
     let c_vec = c_0_vec.tensor_product(&c_1_vec);
+    assert_eq!(c_vec.ncols(), m);
 
-    // 
+    //
     // Prover
     //
     // 9. r_vec = c_1_vec · Ŵ
@@ -151,10 +149,10 @@ pub fn rok_rp<const Q: u64, const D: usize>(
     //
     // 10.1. Build the augmented original:
     //  H_tilde [F              ] W = [Y]
-    //          [c_1_vec * J_hat]     [r] 
+    //          [c_1_vec * J_hat]     [r]
 
     //  H_tilde = [[H,  0],
-    //             [0,  1]],   
+    //             [0,  1]],
     let h_tilde = Mat::block_diagonal(&[h.clone(), Mat::identity(1)]);
 
     // F_eval_tilde = F_eval.stack(c_1_vec * J_hat)
@@ -171,16 +169,15 @@ pub fn rok_rp<const Q: u64, const D: usize>(
     //       I [F_top] w_hat = [z_bar      ]
     //         [c_vec]         [c_0_vec * r]
     //   β_hat  = m_rp · β
-    let f_eval_hat = f_com.stack(&c_vec);
     let beta_hat = (m_rp as u64) * lin.beta();
-    let y_hat = z_bar.stack(&(c_0_vec * r_vec));
+    let y_hat = z_bar.stack(&(c_0_vec * r_vec.transpose()));
     let lin_w_hat = LinRelation::new(
         LinInstance::new(
-            Mat::identity(n_top+1),
+            Mat::identity(n_top + 1),
             f_com.clone(),
-            f_eval_hat,
+            c_vec,
             y_hat,
-            beta_hat
+            beta_hat,
         ),
         LinWitness::new(w_hat_flattened),
     );
@@ -317,5 +314,53 @@ mod tests {
         // r = 2; pick m_rp = 3 (not n_rp · r for any integer n_rp).
         let mut rng = rand::rng();
         let _ = rok_rp(&lin_in, /* n_rp = */ 1, /* m_rp = */ 3, &mut rng);
+    }
+
+    // ─── param coincidence ───
+
+    /// `make_rp_input()` uses m=4, r=2, so m_prime = m/r = 2 = r by coincidence.
+    /// Any place that uses `r` where `m_prime` is intended (or vice versa) would
+    /// silently agree under that fixture. This test breaks the coincidence with
+    /// m=6, r=2, m_prime=3, so c_1_vec sizing / c_vec tensor order / r_vec dim
+    /// must all use the right symbol.
+    #[test]
+    fn test_rp_distinct_r_and_m_prime() {
+        // F_com: 2 × 6
+        let f_com = mat(&[[1, 2, 3, 0, 5, 7], [0, 5, 7, 11, 1, 2]]);
+        let f_eval = Mat::<R>::zero(0, 6);
+        // W: 6 × 2 → r=2, m=6, m_prime=3.
+        let w = mat(&[[1, 0], [0, 1], [1, 0], [0, 1], [1, 0], [0, 1]]);
+        let lin_in = build_rel(f_com, f_eval, w, 4);
+        assert_eq!(lin_in.m(), 6);
+        assert_eq!(lin_in.r(), 2);
+
+        let n_rp = 1;
+        let m_rp = lin_in.r(); // = 2, so m_prime = 3 ≠ r.
+        let mut rng = rand::rng();
+        let (aug, proj) = rok_rp(&lin_in, n_rp, m_rp, &mut rng);
+
+        assert_eq!(aug.n_hat(), lin_in.n_hat() + 1);
+        assert_eq!(proj.r(), 1);
+        assert_eq!(proj.beta(), (m_rp as u64) * lin_in.beta());
+    }
+
+    // ─── n_rp parameter coverage ───
+
+    /// All other tests use n_rp=1. n_rp > 1 changes J's row count
+    /// (n_rp × m_rp) and exercises the tensor structure of J_hat differently.
+    /// Output dim structure (c_1_vec · J_hat is still 1 × m) is invariant,
+    /// but the sampling + tensor paths get a different shape.
+    #[test]
+    fn test_rp_n_rp_greater_than_one() {
+        let lin_in = make_rp_input(); // r=2, m=4
+        let n_rp = 2;
+        let m_rp = n_rp * lin_in.r(); // = 4, size_i = m / m_rp = 1.
+        let mut rng = rand::rng();
+        let (aug, proj) = rok_rp(&lin_in, n_rp, m_rp, &mut rng);
+
+        assert_eq!(aug.n_hat(), lin_in.n_hat() + 1, "n̂ still grows by 1");
+        assert_eq!(proj.r(), 1);
+        // β̂ scales with m_rp (not n_rp directly), so larger n_rp → larger β̂.
+        assert_eq!(proj.beta(), (m_rp as u64) * lin_in.beta(), "β̂ = m_rp · β");
     }
 }

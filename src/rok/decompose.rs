@@ -157,7 +157,8 @@ pub fn rok_decompose<const Q: u64, const D: usize>(
     //
     // Y ?= Σ_{i=0}^{l-1} b^i · Z_i  — verifier recomputes and checks.
     let y = &lin.instance.y;
-    let rhs: Mat<Rq<Q, D>> = zs.into_iter()
+    let rhs: Mat<Rq<Q, D>> = zs
+        .into_iter()
         .scan(Zq::<Q>::one(), |b_pow, z_i| {
             let term = z_i * Rq::<Q, D>::from_zq(*b_pow);
             // b^{i+1} = b^i * b, for next iteration

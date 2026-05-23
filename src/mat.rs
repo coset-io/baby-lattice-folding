@@ -197,7 +197,7 @@ impl<R: Ring> Mat<R> {
 
     /// Tensor product of two matrices. A: m_a x n_a, B: m_b x n_b
     /// A ⊗ B: (m_a * m_b) x (n_a * n_b)
-    /// E.g. 
+    /// E.g.
     /// A = [[1]   B = [[3, 4]]
     ///      [3]]
     /// A ⊗ B = [[3, 4],
@@ -205,13 +205,14 @@ impl<R: Ring> Mat<R> {
     pub fn tensor_product(&self, other: &Self) -> Self {
         let new_nrows = self.nrows * other.nrows;
         let new_ncols = self.ncols * other.ncols;
-        Self::from_fn(new_nrows, new_ncols, |i,j| {
+        Self::from_fn(new_nrows, new_ncols, |i, j| {
             let i_in_self = i / other.nrows;
             let j_in_self = j / other.ncols;
             let i_in_other = i % other.nrows;
             let j_in_other = j % other.ncols;
             // self[(i_in_self, j_in_self)] * other[(i_in_other, j_in_other)]
-            self.data[i_in_self * self.ncols + j_in_self] * other.data[i_in_other * other.ncols + j_in_other]
+            self.data[i_in_self * self.ncols + j_in_self]
+                * other.data[i_in_other * other.ncols + j_in_other]
         })
     }
 }
@@ -262,7 +263,7 @@ impl<R: Ring> Mul for Mat<R> {
     }
 }
 
-impl<R: std::ops::Mul<Output=R> + Clone> Mul<R> for Mat<R> {
+impl<R: std::ops::Mul<Output = R> + Clone> Mul<R> for Mat<R> {
     type Output = Self;
 
     /// Scalar multiplication
@@ -928,8 +929,8 @@ mod tests {
     #[test]
     fn test_tensor_product_dimensions() {
         let a = m(&[[1, 2, 3], [4, 5, 6]]); // 2×3
-        let b = m(&[[1, 2], [3, 4]]);       // 2×2
-        let result = a.tensor_product(&b);   // expect 4×6
+        let b = m(&[[1, 2], [3, 4]]); // 2×2
+        let result = a.tensor_product(&b); // expect 4×6
         assert_eq!(result.dimensions(), (4, 6));
     }
 
@@ -958,9 +959,9 @@ mod tests {
     /// Associativity: (A ⊗ B) ⊗ C == A ⊗ (B ⊗ C).
     #[test]
     fn test_tensor_product_associativity() {
-        let a = m(&[[1, 2]]);       // 1×2
-        let b = m(&[[3], [4]]);     // 2×1
-        let c = m(&[[5, 6]]);       // 1×2
+        let a = m(&[[1, 2]]); // 1×2
+        let b = m(&[[3], [4]]); // 2×1
+        let c = m(&[[5, 6]]); // 1×2
         let lhs = a.tensor_product(&b).tensor_product(&c);
         let rhs = a.tensor_product(&b.tensor_product(&c));
         assert_eq!(lhs, rhs);

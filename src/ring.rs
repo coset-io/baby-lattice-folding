@@ -167,7 +167,7 @@ impl<const Q: u64, const D: usize> Mul<Zq<Q>> for Rq<Q, D> {
     type Output = Self;
 
     fn mul(self, rhs: Zq<Q>) -> Self {
-        Rq::new(self.coeffs.map(|x| x*rhs))
+        Rq::new(self.coeffs.map(|x| x * rhs))
     }
 }
 
