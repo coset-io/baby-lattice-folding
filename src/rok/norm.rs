@@ -16,16 +16,26 @@
 //! These dependencies are flagged where used; the stubs below give the shape
 //! the SALSAA Python prototype expects so the translation has clear anchor points.
 
+use rand::Rng;
+
 use crate::{mat::Mat, relations::LinRelation, ring::Rq, zq::Zq};
 
 /// Sample u ∈ Z_q\{0} and return the Vandermonde column (u^0, u^1, ..., u^{r·d/e - 1}).
 ///
 /// Used by `rok_bar_sum` as the RLC coefficient vector across all NTT slots
 /// (there are r·d/e NTT slots total: r columns × d/e slots per Rq element).
-pub fn get_u_vec<const Q: u64>(_r: usize, _d: usize, _e: usize) -> Vec<Zq<Q>> {
+pub fn sample_u_vec<const Q: u64, const D: usize>(
+    r: usize,
+    e: usize,
+    rng: &mut impl Rng,
+) -> Mat<Zq<Q>> {
     // u = random nonzero Z_q
+    let mut u = Zq::<Q>::random(rng);
+    while u == Zq::zero() {
+        u = Zq::<Q>::random(rng);
+    }
     // return [u^0, u^1, ..., u^{r·d/e - 1}]
-    todo!()
+    Mat::from_fn(1, r * D / e, |i, j| u.pow((i * j) as u64))
 }
 
 /// Π^bar-sum: sumcheck on the RLC of CRT(LDE[W] · LDE[W̄]).
