@@ -116,6 +116,23 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
         }
         coeffs
     }
+
+    /// Negate and rotate all coefficients but the constant term.
+    /// 
+    /// E.g. a(x) = a_0 + a_1 x^1 + a_2 x^2 + a_3 x^3
+    /// \bar a(x) = a(x^{-1})
+    ///           = a_0 - a_3 x^1 - a_2 x^2 - a_1 x^3
+    fn conjugate(&self) -> Self {
+        Self {
+            coeffs: std::array::from_fn(|i| {
+                if i == 0 { 
+                    self.coeffs[i].clone()
+                } else {
+                    Zq::<Q>::new(Q - self.coeffs[D-i].value())
+                }
+            })
+        }
+    }
 }
 
 impl<const Q: u64, const D: usize> Add for Rq<Q, D> {
@@ -569,5 +586,106 @@ mod tests {
         let a = rp([3, 5, 7, 11]);
         let one = Ring4::one();
         assert_eq!((a.clone().ntt() * one.ntt()).intt(), a);
+    }
+
+    // ─── conjugate tests ───
+    //
+    // Conjugation in R_q = Z_q[X]/(X^d+1) is the Galois automorphism σ_{-1}: X ↦ X^{-1}.
+    // Since X^d = -1, X^{-1} = -X^{d-1}. So a(X) = Σ a_i X^i maps to
+    //   ā(X) = a(X^{-1}) = a_0 - a_{d-1} X - a_{d-2} X^2 - ... - a_1 X^{d-1}
+    // i.e. reverse the non-constant coefficients AND negate them (constant a_0 stays).
+    //
+    // Reference: 06_salsaa/ring.py — `conjugate(r) = Rq(r.lift()(-x**(d-1)))`.
+
+    #[test]
+    fn test_conjugate_constant_is_identity() {
+        // Constant polynomial: ā = a. No non-constant terms to flip.
+        assert_eq!(rp([7, 0, 0, 0]).conjugate(), rp([7, 0, 0, 0]));
+        assert_eq!(Ring4::one().conjugate(), Ring4::one());
+        assert_eq!(Ring4::zero().conjugate(), Ring4::zero());
+    }
+
+    #[test]
+    fn test_conjugate_reverses_and_negates_non_constant() {
+        // a = 1 + 2x + 3x^2 + 4x^3
+        // ā = 1 - 4x - 3x^2 - 2x^3 = 1 + 13x + 14x^2 + 15x^3  (mod 17)
+        assert_eq!(rp([1, 2, 3, 4]).conjugate(), rp([1, 13, 14, 15]));
+    }
+
+    #[test]
+    fn test_conjugate_of_x_is_minus_x_cubed() {
+        // a = X. ā = -X^{d-1} = -X^3 = 16 X^3  (mod 17).
+        assert_eq!(rp([0, 1, 0, 0]).conjugate(), rp([0, 0, 0, 16]));
+    }
+
+    #[test]
+    fn test_conjugate_involution() {
+        // σ_{-1} ∘ σ_{-1} = id  (it's an order-2 automorphism: X ↦ X^{-1} ↦ X).
+        let a = rp([3, 5, 7, 11]);
+        assert_eq!(a.conjugate().conjugate(), a);
+    }
+
+    #[test]
+    fn test_conjugate_involution_random() {
+        let mut rng = rand::rng();
+        for _ in 0..20 {
+            let a = Ring4::random(&mut rng);
+            assert_eq!(a.conjugate().conjugate(), a);
+        }
+    }
+
+    #[test]
+    fn test_conjugate_is_ring_homomorphism_additive() {
+        // conjugate(a + b) == conjugate(a) + conjugate(b)
+        let a = rp([1, 2, 3, 4]);
+        let b = rp([5, 6, 7, 8]);
+        assert_eq!((a + b).conjugate(), a.conjugate() + b.conjugate());
+    }
+
+    #[test]
+    fn test_conjugate_is_ring_homomorphism_multiplicative() {
+        // conjugate(a * b) == conjugate(a) * conjugate(b)
+        // This is THE property that makes norm-check work — if this fails,
+        // LDE[a · ā] = LDE[a] · LDE[ā] in canonical embedding breaks.
+        let mut rng = rand::rng();
+        for _ in 0..20 {
+            let a = Ring4::random(&mut rng);
+            let b = Ring4::random(&mut rng);
+            assert_eq!((a * b).conjugate(), a.conjugate() * b.conjugate());
+        }
+    }
+
+    #[test]
+    fn test_conjugate_a_times_a_bar_has_norm_in_constant() {
+        // The defining identity for norm check:
+        //   constant_term(a · ā) = Σ a_i^2  (the squared ℓ2 norm of a, BEFORE centered lift)
+        //
+        // For a = 1 + X:  ā = 1 - X^3.
+        // a · ā = (1+X)(1-X^3) = 1 + X - X^3 - X^4 = 1 + X - X^3 - (-1) = 2 + X - X^3.
+        // constant term = 2 = 1^2 + 1^2  ✓
+        let a = rp([1, 1, 0, 0]);
+        let product = a * a.conjugate();
+        assert_eq!(product.coeffs()[0], F::new(2));
+    }
+
+    #[test]
+    fn test_conjugate_constant_term_equals_norm_squared_random() {
+        // Generalize the previous test: for ANY a with small coefficients (so the
+        // sum-of-squares doesn't overflow mod q), constant_term(a · ā) should equal
+        // Σ a_i^2 (computed as plain integers then reduced mod q).
+        //
+        // We use small coeffs (0..=2) to keep Σ a_i^2 < q = 17.
+        let mut rng = rand::rng();
+        for _ in 0..20 {
+            let raw: [u64; D] = std::array::from_fn(|_| rng.random_range(0..=2));
+            let a = rp(raw);
+            let sum_sq: u64 = raw.iter().map(|&v| v * v).sum();
+            let product = a * a.conjugate();
+            assert_eq!(
+                product.coeffs()[0],
+                F::new(sum_sq),
+                "a = {raw:?}, expected constant = {sum_sq}",
+            );
+        }
     }
 }
