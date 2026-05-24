@@ -47,7 +47,11 @@ fn cal_f_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>, i: usize) -> Zq<Q> {
 fn h_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>) -> Zq<Q> {
     let half_idx = table.len() / 2;
     (0..half_idx)
-        .map(|i| cal_f_x(table, x, i))
+        .map(|i| {
+            let w = cal_f_x(table, x, i);
+            let w_bar = w;
+            w * w_bar
+        })
         .fold(Zq::<Q>::zero(), |acc, v| acc + v)
 }
 
@@ -65,13 +69,11 @@ fn h_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>) -> Zq<Q> {
 ///          Fiat–Shamir lands — see README Future.)
 pub fn sumcheck<const Q: u64>(
     f: Vec<Zq<Q>>,
-    f_bar: Vec<Zq<Q>>,
     claimed_sum: Zq<Q>,
     num_vars: usize,
     d_h: usize,
     rng: &mut impl Rng,
 ) -> SumcheckOutput<Zq<Q>> {
-    assert_eq!(f.len(), f_bar.len(), "f and f_bar must be the same length");
     assert_eq!(f.len(), d_h.pow(num_vars as u32), "f size is not [d_h]^l");
     // Claim: Σ_{b_0} ... Σ_{b_{l-1}} f(b_0, ..., b_{l-1}) = a_0
     // a_j = the verifier's running claim before round j; a_0 = claimed_sum.
@@ -81,7 +83,6 @@ pub fn sumcheck<const Q: u64>(
     let mut received_randoms = Vec::<Zq<Q>>::with_capacity(num_vars);
 
     let mut table_f = f.clone();
-    let _table_f_bar = f_bar.clone();
 
     for _j in 0..num_vars {
         //
@@ -144,28 +145,6 @@ pub fn sumcheck<const Q: u64>(
         // Save all `r`s from verifier
         received_randoms.push(r);
     }
-
-    // For each round j = 0..l:
-    //
-    //   Prover:
-    //     Treat variable j as the symbolic X; sum the remaining variables over [d_h].
-    //     g_j(X) = Σ_{b_{j+1}} ... Σ_{b_{l-1}} f(r_0, ..., r_{j-1}, X, b_{j+1}, ..., b_{l-1})
-    //     Send g_j(0), g_j(1), ..., g_j(d_h - 1) to V.
-    //     (d_h evals fully specify g_j since deg(g_j) ≤ d_h - 1.)
-    //
-    //   Verifier:
-    //     Step 1: a_j ?= g_j(0) + g_j(1) + ... + g_j(d_h - 1).
-    //     Step 2: sample r_j ← Z_q uniformly; set a_{j+1} = g_j(r_j); send r_j to P.
-    //
-    //   Prover:
-    //     Update bookkeeping by collapsing variable j to r_j via lagrange interpolation
-    //     over the d_h points {0, 1, ..., d_h - 1}. Resulting table has length / d_h.
-    //
-    // After l rounds, V holds a_l = g_{l-1}(r_{l-1}). V still owes:
-    //   a_l ?= f(r_0, ..., r_{l-1})
-    // — this final oracle check is the caller's responsibility (e.g. via an LDE
-    //   evaluation or commitment opening).
-
     SumcheckOutput {
         a_l: a,
         rands: received_randoms,
@@ -195,9 +174,9 @@ mod tests {
     #[test]
     fn test_sumcheck_boolean_sum_of_two_vars() {
         let book = vec![zq(0), zq(1), zq(1), zq(2)];
-        let claimed = zq(4);
+        let claimed = zq(6);
         let mut rng = rand::rng();
-        let out = sumcheck(book.clone(), book, claimed, 2, 2, &mut rng);
+        let out = sumcheck(book, claimed, 2, 2, &mut rng);
         assert_eq!(out.rands.len(), 2, "one challenge per variable");
     }
 
@@ -208,7 +187,7 @@ mod tests {
         let book = vec![zq(0), zq(1), zq(1), zq(2)]; // true sum is 4
         let bogus = zq(5);
         let mut rng = rand::rng();
-        let _ = sumcheck(book.clone(), book, bogus, 2, 2, &mut rng);
+        let _ = sumcheck(book, bogus, 2, 2, &mut rng);
     }
 
     // ─── shape / API correctness ───
@@ -221,7 +200,7 @@ mod tests {
         let book = vec![zq(2); 9];
         let claimed = zq(18 % 17);
         let mut rng = rand::rng();
-        let out = sumcheck(book.clone(), book, claimed, 2, 3, &mut rng);
+        let out = sumcheck(book, claimed, 2, 3, &mut rng);
         assert_eq!(out.rands.len(), 2);
     }
 }
