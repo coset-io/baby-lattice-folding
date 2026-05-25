@@ -42,8 +42,8 @@ fn cal_f_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>, i: usize) -> Zq<Q> {
 
 /// Derive h_j(x) = Σ_{b_{j+1}} ... Σ_{b_{l-1}} f(r_0, ..., r_{j-1}, X, b_{j+1}, ..., b_{l-1})
 ///
-/// We know h(X) = Σ_{\vec x_2 \in [d_h]^{l-(j+1)} f(X, \vec x2) + f(X, \vec x2)
-/// We then know f(2, \vec x2) and f(2, \vec x2) with X=2 and \vec x2 passed in.
+/// We know h(X) = Σ_{\vec x_2 \in [d_h]^{l-(j+1)} f(X, \vec x2) * \bar f(X, \vec x2)
+/// We then know f(2, \vec x2) and \bar f(2, \vec x2) with X=2 and \vec x2 passed in.
 fn h_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>) -> Zq<Q> {
     let half_idx = table.len() / 2;
     (0..half_idx)
@@ -53,6 +53,31 @@ fn h_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>) -> Zq<Q> {
             w * w_bar
         })
         .fold(Zq::<Q>::zero(), |acc, v| acc + v)
+}
+
+
+/// Lagrange interpolate from points and evaluate 
+/// f(x) = \sum_i (\prod_{j \neq i} ((x-x_j)/(x_i-x_j))*y_i  (x_i -> 1, x_j -> 0)
+fn evaluate_from_points<const Q: u64>(points: &[(Zq<Q>, Zq<Q>)], x_to_eval: Zq<Q>) -> Zq<Q> {
+    let mut s = Zq::<Q>::zero();
+    let num_points = points.len();
+    // \sum_i (\prod_{j \neq i} ((x-x_j)/(x_i-x_j))*y_i
+    for i in 0..num_points {
+        // \prod_{j \neq i} ((x-x_j)/(x_i-x_j))*y_i
+        let mut p = Zq::<Q>::one();
+        for j in 0..num_points {
+            // skip i==j case
+            if i == j {
+                continue;
+            }
+            // (x-x_j)/(x_i-x_j))
+            p = p * ((x_to_eval - points[j].0) * (points[i].0 - points[j].0).inv())
+        }
+        // *y_i
+        p = p * points[i].1;
+        s = s + p;
+    }
+    s
 }
 
 /// Sumcheck over hypercube [d_h]^num_vars for a function given by its
@@ -101,9 +126,11 @@ pub fn sumcheck<const Q: u64>(
         // We then know f(2, 0) and f(2, 1) with X=2 and x2={0,1} passed in.
         // Do the same cal for \bar f so we can calculate h(2)
         // =====
-        let _h_2 = h_x(&table_f, Zq::new(2));
+        let h_2 = h_x(&table_f, Zq::new(2));
 
         // Send h_0, h_1, h_2 as g(x) to Verifier
+
+        let (g_0, g_1, g_2) = (h_0, h_1, h_2);
 
         //
         // Verifier
@@ -117,22 +144,24 @@ pub fn sumcheck<const Q: u64>(
         // 1. Verify a_j == g_j(0) + g_j(1)
         assert_eq!(
             a,
-            h_0 + h_1,
+            g_0 + g_1,
             "a_j does not match h_j(0)+...+h_j(d_h-1): a_j={a:?}, h_0={h_0:?}, h_1={h_1:?}"
         );
 
-        // 2. SZDL: g_j(r) ?= \sum_{b_{j+1}} ... \sum_{b_{l-1}} f(r_0, ..., r_j, b_{j+1}, ..., b_{l-1})
-        // Verifier samples random r_j
+        // 2. SZDL: g_j(r) ?= h_j(r) = \sum_{b_{j+1}} ... \sum_{b_{l-1}} f(r_0, ..., r_j, b_{j+1}, ..., b_{l-1})
+        // 2.1. Verifier samples random r_j
         let r = Zq::<Q>::random(rng);
+        received_randoms.push(r);
+        // 2.2. Calculate a_{j+1} = h_j(r_j). So next prover needs to prove "a_{j+1} = g_j(r_j) =? h_j(r_j)
+        a = evaluate_from_points(
+            &[(Zq::new(0), g_0), (Zq::new(1), g_1), (Zq::new(2), g_2)],
+            r,
+        );
         // Send r_j to Prover
 
         //
         // Prover
         //
-        // Calculate a_{j+1} = g_j(r_j)
-        a = h_x(&table_f, r);
-        // Send a_{j+1} to Verifier
-
         // Fold the table for the next round
         let half_idx = table_f.len() / 2;
         let mut table_f_new = Vec::with_capacity(half_idx);
@@ -141,9 +170,6 @@ pub fn sumcheck<const Q: u64>(
             table_f_new.push(cal_f_x(&table_f, r, i));
         }
         table_f = table_f_new;
-
-        // Save all `r`s from verifier
-        received_randoms.push(r);
     }
     SumcheckOutput {
         a_l: a,
@@ -184,10 +210,89 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_sumcheck_wrong_claim_panics() {
-        let book = vec![zq(0), zq(1), zq(1), zq(2)]; // true sum is 4
+        let book = vec![zq(0), zq(1), zq(1), zq(2)]; // true sum is 6
         let bogus = zq(5);
         let mut rng = rand::rng();
         let _ = sumcheck(book, bogus, 2, 2, &mut rng);
+    }
+
+    // ─── Lagrange interpolation tests ───
+    //
+    // evaluate_from_points takes `n` distinct points (x_i, y_i) and evaluates
+    // the unique degree-≤(n-1) polynomial through them at a query point.
+
+    /// Helper: build points from a function f and a list of x's.
+    fn pts<G: Fn(u64) -> u64>(xs: &[u64], f: G) -> Vec<(F, F)> {
+        xs.iter().map(|&x| (zq(x), zq(f(x)))).collect()
+    }
+
+    #[test]
+    fn test_interp_passes_through_given_points_2pt() {
+        // L(x_i) must equal y_i. With n=2 this passes even with the y_i^{n-1}
+        // bug (since n-1=1), so this catches only gross errors.
+        let points = vec![(zq(0), zq(5)), (zq(1), zq(7))];
+        assert_eq!(evaluate_from_points(&points, zq(0)), zq(5));
+        assert_eq!(evaluate_from_points(&points, zq(1)), zq(7));
+    }
+
+    #[test]
+    fn test_interp_passes_through_given_points_3pt() {
+        // For n=3, y_i^{n-1} = y_i^2 ≠ y_i when y_i ∉ {0, 1}, so a buggy
+        // implementation that multiplies y_i inside the j-loop will FAIL.
+        let points = vec![(zq(0), zq(3)), (zq(1), zq(5)), (zq(2), zq(11))];
+        assert_eq!(evaluate_from_points(&points, zq(0)), zq(3));
+        assert_eq!(evaluate_from_points(&points, zq(1)), zq(5));
+        assert_eq!(evaluate_from_points(&points, zq(2)), zq(11));
+    }
+
+    #[test]
+    fn test_interp_linear_eval_at_new_point() {
+        // p(x) = 2x + 3.  p(5) = 13, p(7) = 17 = 0  (mod 17).
+        let points = pts(&[0, 1], |x| (2 * x + 3) % Q);
+        assert_eq!(evaluate_from_points(&points, zq(5)), zq(13));
+        assert_eq!(evaluate_from_points(&points, zq(7)), zq(0));
+    }
+
+    #[test]
+    fn test_interp_quadratic_eval_at_new_point() {
+        // p(x) = x^2 + 1.  p(0)=1, p(1)=2, p(2)=5, p(3)=10, p(4)=17=0.
+        let points = pts(&[0, 1, 2], |x| (x * x + 1) % Q);
+        assert_eq!(evaluate_from_points(&points, zq(3)), zq(10));
+        assert_eq!(evaluate_from_points(&points, zq(4)), zq(0));
+    }
+
+    #[test]
+    fn test_interp_quadratic_nontrivial_y0() {
+        // Sharpest test for the y_i^{n-1} bug.
+        // p(x) = 3x^2 + 2x + 4:  p(0)=4, p(1)=9, p(2)=20=3, p(5)=89=4 (mod 17).
+        let points = vec![(zq(0), zq(4)), (zq(1), zq(9)), (zq(2), zq(3))];
+        assert_eq!(evaluate_from_points(&points, zq(5)), zq(4));
+    }
+
+    #[test]
+    fn test_interp_at_nonintegral_eval_point() {
+        // Query at x = 16 ≡ -1 (mod 17).  p(x) = x + 1 → p(-1) = 0.
+        let points = pts(&[0, 1], |x| (x + 1) % Q);
+        assert_eq!(evaluate_from_points(&points, zq(16)), zq(0));
+    }
+
+    #[test]
+    fn test_interp_4pt_cubic() {
+        // p(x) = x^3.  p(2)=8, p(3)=27=10, p(4)=64=13  (mod 17).
+        let points = pts(&[0, 1, 2, 3], |x| (x * x * x) % Q);
+        assert_eq!(evaluate_from_points(&points, zq(4)), zq(13));
+        assert_eq!(evaluate_from_points(&points, zq(2)), zq(8));
+        assert_eq!(evaluate_from_points(&points, zq(3)), zq(10));
+    }
+
+    #[test]
+    fn test_interp_constant_polynomial() {
+        // p(x) = 7. Three points all with y = 7. 7^2 = 49 = 15 ≠ 7, so the
+        // bug is observable here (y = 0 or 1 would hide it).
+        let points = vec![(zq(0), zq(7)), (zq(1), zq(7)), (zq(2), zq(7))];
+        assert_eq!(evaluate_from_points(&points, zq(0)), zq(7));
+        assert_eq!(evaluate_from_points(&points, zq(5)), zq(7));
+        assert_eq!(evaluate_from_points(&points, zq(13)), zq(7));
     }
 
     // ─── shape / API correctness ───
