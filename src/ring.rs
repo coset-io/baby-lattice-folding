@@ -102,6 +102,23 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
             .sum()
     }
 
+    /// Negate and rotate all coefficients but the constant term.
+    ///
+    /// E.g. a(x) = a_0 + a_1 x^1 + a_2 x^2 + a_3 x^3
+    /// \bar a(x) = a(x^{-1})
+    ///           = a_0 - a_3 x^1 - a_2 x^2 - a_1 x^3
+    pub fn conjugate(&self) -> Self {
+        Self {
+            coeffs: std::array::from_fn(|i| {
+                if i == 0 {
+                    self.coeffs[i]
+                } else {
+                    Zq::<Q>::new(Q - self.coeffs[D - i].value())
+                }
+            }),
+        }
+    }
+
     /// Reduce a polynomial (with up to 2D-1 coefficients) mod X^D + 1.
     fn reduce(full: &[Zq<Q>]) -> [Zq<Q>; D] {
         assert!(full.len() < 2 * D);
@@ -117,22 +134,6 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
         coeffs
     }
 
-    /// Negate and rotate all coefficients but the constant term.
-    ///
-    /// E.g. a(x) = a_0 + a_1 x^1 + a_2 x^2 + a_3 x^3
-    /// \bar a(x) = a(x^{-1})
-    ///           = a_0 - a_3 x^1 - a_2 x^2 - a_1 x^3
-    fn conjugate(&self) -> Self {
-        Self {
-            coeffs: std::array::from_fn(|i| {
-                if i == 0 {
-                    self.coeffs[i]
-                } else {
-                    Zq::<Q>::new(Q - self.coeffs[D - i].value())
-                }
-            }),
-        }
-    }
 }
 
 impl<const Q: u64, const D: usize> Add for Rq<Q, D> {

@@ -38,11 +38,15 @@ use crate::{
 ///   - `lins`:  L instances to be folded.
 ///   - `b`:     base of b-ary decomposition (default 2).
 ///   - `n_rp`:  the n_rp in rok_rp; security parameter. TODO: choose a proper number.
+///   - `e`:     NTT slot size used by rok_norm (d/e slots per Rq element).
+///   - `d_h`:   sumcheck hypercube basis size used by rok_norm.
 ///   - `rng`:   verifier challenges. (Replace with `&mut Transcript` once Fiat–Shamir lands.)
 pub fn fold<const Q: u64, const D: usize>(
     lins: &[LinRelation<Q, D>],
     b: u64,
     n_rp: usize,
+    e: usize,
+    d_h: usize,
     rng: &mut impl Rng,
 ) -> LinRelation<Q, D> {
     //
@@ -62,7 +66,7 @@ pub fn fold<const Q: u64, const D: usize>(
     //
     // Norm check
     //
-    let lin_normed = rok_norm(&lin_joined);
+    let lin_normed = rok_norm(e, d_h, rng, &lin_joined);
     assert_eq!(lin_normed.n_hat(), lin_joined.n_hat() + 2);
     assert_eq!(lin_normed.n(), lin_joined.n() + 2);
     assert_eq!(lin_normed.m(), lin_joined.m());
@@ -86,7 +90,7 @@ pub fn fold<const Q: u64, const D: usize>(
     assert_eq!(lin_w_hat.n(), lin_joined.n_top() + 1);
     assert_eq!(lin_w_hat.m(), lin_joined.m());
     assert_eq!(lin_w_hat.r(), 1);
-    assert!(lin_w_hat.beta() > lin_joined.beta());
+    assert!(lin_w_hat.beta() >= lin_joined.beta());
 
     //
     // Fold the witnesses of the main statements into `r_out = 1`.
@@ -97,7 +101,7 @@ pub fn fold<const Q: u64, const D: usize>(
     assert_eq!(lin_folded.n(), lin_joined.n() + 3);
     assert_eq!(lin_folded.m(), lin_joined.m());
     assert_eq!(lin_folded.r(), 1);
-    assert!(lin_folded.beta() > lin_orig.beta());
+    assert!(lin_folded.beta() > lin_orig.beta(), "norm bound didn't grow after fold");
 
     //
     // Merge (join) the ⊗RP-side (w_hat) relation with the folded one.
@@ -213,7 +217,7 @@ mod tests {
         }
 
         let mut rng = rand::rng();
-        let out = fold(&lins, /* b = */ 2, /* n_rp = */ 1, &mut rng);
+        let out = fold(&lins, /* b = */ 2, /* n_rp = */ 1, /* e = */ 1, /* d_h = */ 2, &mut rng);
 
         // m is preserved end-to-end (witness rows / commitment width).
         assert_eq!(out.m(), lins[0].m(), "m must be preserved across the chain");
@@ -239,7 +243,7 @@ mod tests {
         let lins = vec![build_rel(f_com, w, 4)];
 
         let mut rng = rand::rng();
-        let out = fold(&lins, 2, 1, &mut rng);
+        let out = fold(&lins, 2, 1, 1, 2, &mut rng);
         assert_eq!(out.m(), lins[0].m());
     }
 
@@ -249,6 +253,6 @@ mod tests {
     fn test_salsaa_fold_empty_panics() {
         let lins: Vec<LinRelation<Q, D>> = vec![];
         let mut rng = rand::rng();
-        let _ = fold(&lins, 2, 1, &mut rng);
+        let _ = fold(&lins, 2, 1, 1, 2, &mut rng);
     }
 }

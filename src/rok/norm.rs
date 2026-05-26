@@ -18,7 +18,7 @@
 
 use rand::Rng;
 
-use crate::{mat::Mat, relations::LinRelation, ring::Rq, zq::Zq};
+use crate::{lde::{lde, tensor}, mat::Mat, relations::{LinInstance, LinRelation, LinWitness}, ring::Rq, zq::Zq};
 
 /// Sample u ∈ Z_q\{0} and return the Vandermonde column (u^0, u^1, ..., u^{r·d/e - 1}).
 ///
@@ -38,6 +38,16 @@ pub fn sample_u_vec<const Q: u64, const D: usize>(
     Mat::from_fn(1, r * D / e, |i, j| u.pow((i * j) as u64))
 }
 
+fn get_l(m: usize, d_h: usize) -> usize {
+    let mut l = 1;
+    let mut cur_hc_size = d_h;
+    while cur_hc_size < m {
+        cur_hc_size *= d_h;
+        l += 1;
+    }
+    l
+}
+
 /// Π^bar-sum: sumcheck on the RLC of CRT(LDE[W] · LDE[W̄]).
 ///
 /// Returns `((r_T, s_0), (r_T_bar, s_1))` where:
@@ -49,20 +59,37 @@ pub fn sample_u_vec<const Q: u64, const D: usize>(
 /// Verifier checks `a_l ?= u^T · CRT(s_0 · s̄_1)` to close the loop.
 #[allow(clippy::type_complexity)]
 pub fn rok_bar_sum<const Q: u64, const D: usize>(
-    _r: usize,
-    _t: &[Rq<Q, D>],
-    _w: &Mat<Rq<Q, D>>,
+    e: usize,
+    d_h: usize,
+    t_vec: &[Rq<Q, D>],
+    w_mat: &Mat<Rq<Q, D>>,
+    rng: &mut impl Rng,
 ) -> (
     (Vec<Rq<Q, D>>, Vec<Rq<Q, D>>),
     (Vec<Rq<Q, D>>, Vec<Rq<Q, D>>),
 ) {
+    let m = w_mat.nrows();
+    let r = w_mat.ncols();
+    assert_eq!(t_vec.len(), r);
+
     //
     // Verifier
     //
-    // RLC challenges: u_T = (u^0, u^1, ..., u^{r·d/e - 1}), u ←$ Z_q\{0}.
-    //   We have one LDE per column w_i ∈ W = [w_1, ..., w_r]; each LDE is split
-    //   into d/e NTT slots over F_{q^e}. Total: r · d/e slots.
-    //
+
+    // Challenges in RLC for all NTT slots
+    // We have a LDE for each column w_i \in W=[w_1, ..., w_r] and
+    // we split that LDE into d/e NTT slots f_\text{slot_0}, ..., f_\text{slot_3}
+    // So in total there are r*d/e slots (F_{q^e})
+    // u^T: [u^0, u^1, ..., u^{rd/e}]
+    let u_vec = sample_u_vec::<Q,D>(r, e, rng);
+
+    // [t_{0,0}, ..., t_{0,d/e}, ..., t_{r-1,0}, ..., t_{r-1,d/e}]
+    // t_ntt = [
+    //     t_i_s
+    //     for t_i in t  # t_i \in R_q
+    //     for t_i_s in ntt(t_i.list(), Rq)
+    // ]
+
     // t_ntt = flatten([NTT(t_i) for t_i in t])   ∈ Z_q^{r·d/e}
     //         = [t_{0,0}, ..., t_{0, d/e-1}, ..., t_{r-1, 0}, ..., t_{r-1, d/e-1}]
     //
@@ -89,6 +116,11 @@ pub fn rok_bar_sum<const Q: u64, const D: usize>(
     // Prover ↔ Verifier: sumcheck on tilde_f
     //
     // a_l, rands = sumcheck(tilde_f, xs, a_0, D_hypercube)
+    let l = get_l(m, d_h);
+    
+    // FIXME: now it's calculated directly from prover.
+    let a_l: Zq<Q> = Zq::zero();
+    let rs: Vec<Zq<Q>> = (0..l).map(|_| Zq::new(rng.random_range(0..Q))).collect();
 
     //
     // Prover: oracle-check side
@@ -102,6 +134,20 @@ pub fn rok_bar_sum<const Q: u64, const D: usize>(
     //   where r_T_bar = [conjugate(r_T[j]) for j in 0..l].
     //
     // Send s_0, s_1 to Verifier.
+    let r_vec: Vec<Rq<Q, D>> = rs.iter().map(|&r_f| Rq::<Q,D>::from_zq(r_f)).collect();
+    let s_0: Vec<_> = (0..r).map(
+        |j| {
+            let w_j = w_mat.col(j);
+            lde(&w_j, d_h, &r_vec)
+        }
+    ).collect();
+    let r_bar_vec: Vec<_> = r_vec.iter().map(|r_r| r_r.conjugate()).collect();
+    let s_1: Vec<_> = (0..r).map(
+        |j| {
+            let w_j = w_mat.col(j);
+            lde(&w_j, d_h, &r_vec)
+        }
+    ).collect();
 
     //
     // Verifier (final check)
@@ -111,7 +157,10 @@ pub fn rok_bar_sum<const Q: u64, const D: usize>(
     // rhs       = u_T · rhs_ntt
     // assert a_l == rhs
 
-    todo!()
+    (
+        (r_vec, s_0),
+        (r_bar_vec, s_1),
+    )
 }
 
 /// Π^norm: prove ‖W‖₂² ≤ d · β² by reducing to a sum-linear relation via
@@ -119,7 +168,11 @@ pub fn rok_bar_sum<const Q: u64, const D: usize>(
 /// evaluation points (r_0, r_1) into F_eval and (s_0, s_1) into Y.
 ///
 /// Effect: n̂ += 2, n += 2; m, r, β preserved. F_com untouched.
-pub fn rok_norm<const Q: u64, const D: usize>(lin: &LinRelation<Q, D>) -> LinRelation<Q, D> {
+pub fn rok_norm<const Q: u64, const D: usize>(e: usize, d_h: usize, rng: &mut impl Rng, lin: &LinRelation<Q, D>) -> LinRelation<Q, D> {
+    let h  = &lin.instance.h;
+    let f_com = &lin.instance.f_com;
+    let f_eval = &lin.instance.f_eval;
+    let y = &lin.instance.y;
     let w = &lin.witness.w;
     let m = lin.m();
     let r = lin.r();
@@ -131,24 +184,49 @@ pub fn rok_norm<const Q: u64, const D: usize>(lin: &LinRelation<Q, D>) -> LinRel
     // (i.e. t_i = ⟨w_i, w̄_i⟩  ∈ R_q)
     // Send `t` to Verifier.
 
+    let t_vec: Vec<_> = (0..r).map(|j| {
+        let col = w.col(j);
+        let t_i = col.iter()
+            .map(|w_ij| w_ij.clone() * w_ij.conjugate())
+            .fold(Rq::zero(), |acc, v| acc + v);
+        t_i
+    }).collect();
+
     //
     // Verifier: bound check
     //
     // μ² := d · β²
     // For each i: Trace(t_i) = d · constant_term(t_i)
     //   assert Trace(t_i) ≤ μ²
+    let mu_square = (D as u64) * (lin.beta() * lin.beta());
+    for i in 0..r {
+        // Trace(t_i) = d * ct(t_i)
+        let trace_t_i = (D as u64) * t_vec[i].coeffs()[0].value();
+        assert!(trace_t_i < mu_square);
+    }
 
     //
     // Prover ↔ Verifier: reduce  t_i ?= ⟨w_i, w̄_i⟩  to  "LDE[W](r_0) = s_0, LDE[W](r_1) = s_1"
     //
     // ((r_0, s_0), (r_1, s_1)) = rok_bar_sum(r, t, W)
+    let ((r_0, s_0), (r_1, s_1)) = rok_bar_sum(e, d_h, &t_vec, w, rng);
 
     //
     // Both: embed (s_0, s_1) into the existing relation H·F·W = Y
     //
     // new_F_rows = [tensor_product(r_0, D_hypercube),
     //               tensor_product(r_1, D_hypercube)]
+
+    let new_f_rows = Mat::<Rq<Q,D>>::new(vec![
+        tensor(&r_0, d_h),
+        tensor(&r_1, d_h)
+    ]);
     // new_Y_rows = [s_0, s_1]
+
+    let new_y_rows = Mat::<Rq<Q,D>>::new(vec![
+        s_0,
+        s_1,
+    ]);
     // lin_new = LinRelation(
     //     instance = lin.instance.with_extra_eval(new_F_rows, new_Y_rows),
     //     witness  = lin.witness,
@@ -156,8 +234,18 @@ pub fn rok_norm<const Q: u64, const D: usize>(lin: &LinRelation<Q, D>) -> LinRel
     // Result: n̂ += 2, n += 2, m unchanged, r unchanged, β unchanged.
 
     let _ = (w, m, r);
+    let f_eval_new = f_eval.stack(&new_f_rows);
+    let y_new = y.stack(&new_y_rows);
+    // H grows to match: 2 new eval rows ⇒ append I_2 along the diagonal so
+    // each new constraint is an identity selector against the new F_eval rows.
+    let h_new = Mat::block_diagonal(&[h.clone(), Mat::identity(2)]);
 
-    todo!()
+
+    // H * F * \tilde W = \tilde Y
+    LinRelation::new(
+        LinInstance::new(h_new, f_com.clone(), f_eval_new, y_new, lin.beta()),
+        LinWitness::new(w.clone()),
+    )
 }
 
 #[cfg(test)]
@@ -212,7 +300,8 @@ mod tests {
             mat(&[[1], [0]]),     // W: 2 × 1, small norm
             4,
         );
-        let out = rok_norm(&rel);
+        let mut rng = rand::rng();
+        let out = rok_norm(/* e = */ 1, /* d_h = */ 2, &mut rng, &rel);
 
         assert_eq!(out.n_hat(), rel.n_hat() + 2, "n̂ += 2");
         assert_eq!(out.n(), rel.n() + 2, "n += 2");
@@ -229,7 +318,8 @@ mod tests {
     #[test]
     fn test_norm_produces_valid_relation() {
         let rel = build_rel(mat(&[[1, 2]]), Mat::<R>::zero(0, 2), mat(&[[1], [0]]), 4);
-        let _out = rok_norm(&rel);
+        let mut rng = rand::rng();
+        let _out = rok_norm(/* e = */ 1, /* d_h = */ 2, &mut rng, &rel);
     }
 
     // Norm-bound violation isn't tested here on purpose: LinRelation::new

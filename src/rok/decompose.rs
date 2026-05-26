@@ -177,7 +177,12 @@ pub fn rok_decompose<const Q: u64, const D: usize>(
     //   β            <=  ⌊b/2⌋ · √(m · d)
     // Uses isqrt so it stays integer (floor when m·d is not a square).
     // new_beta = (b // 2) * isqrt(m * d)
-    let new_beta = (b / 2) * ((m * D) as u64).isqrt();
+    let half_b = b / 2;
+    let bound_sq = half_b * half_b * (m as u64) * (D as u64);
+    let new_beta = {
+        let s = bound_sq.isqrt();
+        if s * s == bound_sq { s } else { s + 1 }
+    };
 
     // H F V_tilde = [Z_0 || ... || Z_{l-1}]
     //             = [H F V_0 || ... || H F V_{l-1}]
