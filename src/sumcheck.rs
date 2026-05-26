@@ -55,8 +55,7 @@ fn h_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>) -> Zq<Q> {
         .fold(Zq::<Q>::zero(), |acc, v| acc + v)
 }
 
-
-/// Lagrange interpolate from points and evaluate 
+/// Lagrange interpolate from points and evaluate
 /// f(x) = \sum_i (\prod_{j \neq i} ((x-x_j)/(x_i-x_j))*y_i  (x_i -> 1, x_j -> 0)
 fn evaluate_from_points<const Q: u64>(points: &[Zq<Q>], x_to_eval: Zq<Q>) -> Zq<Q> {
     let mut s = Zq::<Q>::zero();
@@ -71,7 +70,8 @@ fn evaluate_from_points<const Q: u64>(points: &[Zq<Q>], x_to_eval: Zq<Q>) -> Zq<
                 continue;
             }
             // (x-x_j)/(x_i-x_j))
-            p = p * ((x_to_eval - Zq::new(j as u64)) * (Zq::new(i as u64) - Zq::new(j as u64)).inv())
+            p = p
+                * ((x_to_eval - Zq::new(j as u64)) * (Zq::new(i as u64) - Zq::new(j as u64)).inv())
         }
         // *y_i
         p = p * points[i];
@@ -81,7 +81,9 @@ fn evaluate_from_points<const Q: u64>(points: &[Zq<Q>], x_to_eval: Zq<Q>) -> Zq<
 }
 
 fn calculate_h_from_table<const Q: u64>(table: &[Zq<Q>], target_degree: usize) -> Vec<Zq<Q>> {
-    (0..=target_degree as u64).map(|x| h_x(&table, Zq::new(x))).collect()
+    (0..=target_degree as u64)
+        .map(|x| h_x(table, Zq::new(x)))
+        .collect()
 }
 
 /// Sumcheck over hypercube [d_h]^num_vars for a function given by its
@@ -137,8 +139,7 @@ pub fn sumcheck<const Q: u64>(
         // 1. Verify a_j == g_j(0) + g_j(1) + ... + g_j(d_h-1)
         let sum_g_hypercube = (0..d_h).map(|x| g[x]).fold(Zq::zero(), |acc, v| acc + v);
         assert_eq!(
-            a,
-            sum_g_hypercube,
+            a, sum_g_hypercube,
             "a_j does not match h_j(0)+...+h_j(d_h-1): a_j={a:?}, g={g:?}"
         );
 
@@ -147,10 +148,7 @@ pub fn sumcheck<const Q: u64>(
         let r = Zq::<Q>::random(rng);
         received_randoms.push(r);
         // 2.2. Calculate a_{j+1} = h_j(r_j). So next prover needs to prove "a_{j+1} = g_j(r_j) =? h_j(r_j)
-        a = evaluate_from_points(
-            &g,
-            r,
-        );
+        a = evaluate_from_points(&g, r);
         // Send r_j to Prover
 
         //
