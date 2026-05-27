@@ -137,7 +137,7 @@ pub fn fold<const Q: u64, const D: usize>(
     assert_eq!(lin_decomposed.n(), lin_joined.n() + 4);
     assert_eq!(lin_decomposed.m(), lin_joined.m());
 
-    let ell = get_l(lin_batched.beta(), b) as usize;
+    let ell = get_l(lin_batched.beta(), b);
     // New Y is Z̃ = [Z_0 || ... || Z_{ℓ-1}] with each Z_i ∈ R^{m × r_old},
     // so r_new = r_old · ℓ.
     assert_eq!(lin_decomposed.r(), lin_batched.r() * ell);
