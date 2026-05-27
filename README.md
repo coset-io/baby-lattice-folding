@@ -104,20 +104,14 @@ Timeline: 2026.01 ~ 2026.04
 Goal:  We plan to develop baby lattice folding, an educational Rust implementation of the lattice-based folding scheme (SALSAA), building upon existing theoretical and practical foundations.
 
 Outline:
-- [x] Fields — custom `Zq<Q>` (decided against ark-ff: too heavy for simple Z_q)
-- [x] Polynomials — custom `Poly<Q>` over `Zq<Q>` (schoolbook mul)
-    - [x] `Poly<Q>`: $Z_q[X]$, polynomial ring without reduction
-    - [x] `Rq`:  $R_q = Z_q[X]/(X^D+1)$, polynomial quotient ring.
-- [x] NTT and polynomial multiplication
-- [x] Matrix over Rq
-- [ ] RoKs:
+- [x] RoKs:
     - [x] join
     - [x] batch
-    - [ ] decompose
-    - [ ] rp
-    - [ ] fold
-- [ ] Norm check
-- [ ] Whole folding chain of the RoKs
+    - [x] decompose
+    - [x] rp
+    - [x] fold
+    - [x] norm check
+- [x] Whole folding chain of the RoKs
 - Future:
     - [ ] R1CS support: currently only support raw `LinRelation`. Should have a way to support 
     - [ ] Fiat–Shamir
