@@ -133,7 +133,6 @@ impl<const Q: u64, const D: usize> Rq<Q, D> {
         }
         coeffs
     }
-
 }
 
 impl<const Q: u64, const D: usize> Add for Rq<Q, D> {

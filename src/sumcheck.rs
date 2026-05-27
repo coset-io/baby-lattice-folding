@@ -1,24 +1,3 @@
-//! Multivariate sumcheck protocol over hypercube [D_h]^l.
-//!
-//! Reference: `06_salsaa/sumcheck.py`.
-//!
-//! NOTE: this implementation uses a **bookkeeping table** representation (one
-//! evaluation per hypercube point), NOT the symbolic-polynomial substitution
-//! used in the Python prototype. The bookkeeping version stores the function
-//! as flat Vec<Zq> tables and updates them in place each round, avoiding the
-//! need for a symbolic multivariate polynomial type.
-//!
-//! Architecture: the sumcheck **driver** ([`sumcheck`]) is generic over a
-//! [`SumcheckProver`] trait — all protocol-level work (verifier checks, Lagrange
-//! interpolation, challenge sampling) lives in the driver; per-protocol
-//! specialisation (which tables exist, how round messages are computed, how
-//! state is folded) lives in the trait impl. Today there is one impl,
-//! [`SingleProductProver`], which proves `Σ_x A(x) · B(x)` over the hypercube.
-//! Future work will add a `BatchedSlotProver` for CRT+RLC norm checks.
-//!
-//! Naming note: `D_h` (hypercube basis) is intentionally distinct from `D`
-//! (cyclotomic dimension in `Rq<Q, D>`). They are unrelated constants.
-
 use rand::Rng;
 
 use crate::zq::Zq;
@@ -114,7 +93,7 @@ impl<const Q: u64> SumcheckProver<Q> for SingleProductProver<Q> {
 ///
 /// i = (x_{j+1}, ..., x_{l-1}) = \vec x2
 /// e.g. i = 0 -> (0, 0), i = 1 -> (0, 1)
-fn cal_f_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>, i: usize) -> Zq<Q> {
+pub fn cal_f_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>, i: usize) -> Zq<Q> {
     let half_idx = table.len() / 2;
     // p(x) = (1-x)*lo + x*hi
     (Zq::one() - x) * table[i] + x * table[half_idx + i]
@@ -125,7 +104,7 @@ fn cal_f_x<const Q: u64>(table: &[Zq<Q>], x: Zq<Q>, i: usize) -> Zq<Q> {
 /// h(X) = Σ_{\vec x_2 \in [d_h]^{l-(j+1)}} f(X, \vec x2) * \bar f(X, \vec x2)
 /// We extrapolate f and \bar f to X separately via the multilinear formula,
 /// then multiply and sum over remaining hypercube variables.
-fn h_x<const Q: u64>(table_f: &[Zq<Q>], table_f_bar: &[Zq<Q>], x: Zq<Q>) -> Zq<Q> {
+pub fn h_x<const Q: u64>(table_f: &[Zq<Q>], table_f_bar: &[Zq<Q>], x: Zq<Q>) -> Zq<Q> {
     let half_idx = table_f.len() / 2;
     (0..half_idx)
         .map(|i| {
@@ -145,7 +124,7 @@ fn evaluate_from_points<const Q: u64>(points: &[Zq<Q>], x_to_eval: Zq<Q>) -> Zq<
     let mut s = Zq::<Q>::zero();
     let num_points = points.len();
     // L(x) = Σ_i y_i · Π_{j ≠ i} (x - j) / (i - j)
-    for i in 0..num_points {
+    for (i, &y_i) in points.iter().enumerate() {
         // p = Π_{j ≠ i} (x - j) / (i - j)  -- pure barycentric basis
         let mut p = Zq::<Q>::one();
         for j in 0..num_points {
@@ -156,7 +135,7 @@ fn evaluate_from_points<const Q: u64>(points: &[Zq<Q>], x_to_eval: Zq<Q>) -> Zq<
                 * ((x_to_eval - Zq::new(j as u64)) * (Zq::new(i as u64) - Zq::new(j as u64)).inv())
         }
         // multiply y_i exactly once, OUTSIDE the j-loop
-        p = p * points[i];
+        p = p * y_i;
         s = s + p;
     }
     s
@@ -172,7 +151,7 @@ fn calculate_h_from_table<const Q: u64>(
         .collect()
 }
 
-fn fold_table<const Q: u64>(table: &[Zq<Q>], r: Zq<Q>) -> Vec<Zq<Q>> {
+pub fn fold_table<const Q: u64>(table: &[Zq<Q>], r: Zq<Q>) -> Vec<Zq<Q>> {
     let half_idx = table.len() / 2;
     (0..half_idx).map(|i| cal_f_x(table, r, i)).collect()
 }
@@ -187,7 +166,7 @@ fn fold_table<const Q: u64>(table: &[Zq<Q>], r: Zq<Q>) -> Vec<Zq<Q>> {
 /// - `num_vars`: l, number of variables in the hypercube.
 /// - `d_h`: hypercube basis size (d_h = 2 for Boolean sumcheck).
 /// - `rng`: verifier challenge source. (Replace with `&mut Transcript` once
-///          Fiat–Shamir lands — see README Future.)
+///   Fiat–Shamir lands — see README Future.)
 pub fn sumcheck<const Q: u64, P: SumcheckProver<Q>>(
     prover: &mut P,
     claimed_sum: Zq<Q>,
@@ -199,7 +178,7 @@ pub fn sumcheck<const Q: u64, P: SumcheckProver<Q>>(
     let mut received_randoms = Vec::<Zq<Q>>::with_capacity(num_vars);
 
     for _j in 0..num_vars {
-        // Prover sends g(X) = h_j(X)
+        // Prover sends g(X) = h_j(X) to Verifier
         let g = prover.round_message();
 
         // Verifier check 1: a == g(0) + g(1) + ... + g(d_h - 1)

@@ -14,7 +14,7 @@ use crate::{
 /// Difference from the ternary distribution in rok_fold
 /// 1. Probabilities are different, which is p = 1/3 each in rok_fold.
 /// 2. In rok_fold it's a full degree Rq, e.g. c = 1-x+...+x^{D-1}. But here
-///     it's only a constant, e.g. c = 1.
+///    it's only a constant, e.g. c = 1.
 fn sample_j_entry<const Q: u64, const D: usize>(rng: &mut impl Rng) -> Rq<Q, D> {
     // let there be two 0 so χ(0)=1/2, and ±1 stay as is so χ(±1) = 1/4
     let choices = [0, 0, 1, -1];
@@ -45,16 +45,16 @@ fn vec_col_major<const Q: u64, const D: usize>(w: &Mat<Rq<Q, D>>) -> Mat<Rq<Q, D
 /// Π^⊗RP: prove W satisfies F·W = Y with ‖W‖ ≤ β using Johnson–Lindenstrauss
 /// random projection. Returns:
 ///   - `lin_orig`:  augmented original (H̃, F̃, Ỹ) with W unchanged, plus the
-///                  c_1·Ĵ row constraining W via the projection.
+///     c_1·Ĵ row constraining W via the projection.
 ///   - `lin_w_hat`: projected ((I, F̂, ŷ), ŵ) — width collapsed to r=1,
-///                  m shrinks to m' = m/r, β grows to m_rp · β.
+///     m shrinks to m' = m/r, β grows to m_rp · β.
 ///
 /// Prover proves W satisfying FW=Y with |W| <= beta using Johnson-Lindenstrauss
 /// random projection.
 /// Returns 2 relations
 /// - lin_orig:  original `lin` + "W projects to r via c_1*j_hat"
 /// - lin_w_hat: Commitment of projected W and it's within a new norm bound \hat beta
-/// two relations are chained by `r_vec`, and RLC is used to compress new statements.
+///   two relations are chained by `r_vec`, and RLC is used to compress new statements.
 ///
 /// Precondition: m_rp == n_rp · r and m is divisible by m_rp.
 ///

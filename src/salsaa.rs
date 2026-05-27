@@ -101,7 +101,10 @@ pub fn fold<const Q: u64, const D: usize>(
     assert_eq!(lin_folded.n(), lin_joined.n() + 3);
     assert_eq!(lin_folded.m(), lin_joined.m());
     assert_eq!(lin_folded.r(), 1);
-    assert!(lin_folded.beta() > lin_orig.beta(), "norm bound didn't grow after fold");
+    assert!(
+        lin_folded.beta() > lin_orig.beta(),
+        "norm bound didn't grow after fold"
+    );
 
     //
     // Merge (join) the ⊗RP-side (w_hat) relation with the folded one.
@@ -217,7 +220,10 @@ mod tests {
         }
 
         let mut rng = rand::rng();
-        let out = fold(&lins, /* b = */ 2, /* n_rp = */ 1, /* e = */ 1, /* d_h = */ 2, &mut rng);
+        let out = fold(
+            &lins, /* b = */ 2, /* n_rp = */ 1, /* e = */ 1, /* d_h = */ 2,
+            &mut rng,
+        );
 
         // m is preserved end-to-end (witness rows / commitment width).
         assert_eq!(out.m(), lins[0].m(), "m must be preserved across the chain");
