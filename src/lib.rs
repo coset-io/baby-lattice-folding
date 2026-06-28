@@ -1,4 +1,3 @@
-pub mod ajtai;
 pub mod lde;
 pub mod mat;
 pub mod ntt;

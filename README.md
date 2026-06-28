@@ -1,11 +1,11 @@
-![alt text](lattticefold.png)
+![alt text](./assets/lattticefold.png)
 
 ---
 
 # baby-lattice-folding
 This is an educational project aimed at building a Rust implementation of lattice-based folding schemes, progressing through theoretical research, practical code analysis, and hands-on development to better understand lattice folding.
 
-Our plan: 1. theoretical research, 2. practical learning, 3. coding
+Our plan: 1. [Theoretical research](#1-theoretical-research), 2. [Practical learning & coding](#2-practical-learning--coding)
 
 ## Getting started
 
@@ -46,7 +46,7 @@ cargo build
 cargo test
 ```
 
-## 1. theoretical research
+## 1. Theoretical research
 
 Goal: Read recent lattice-based folding schemes: Hypernova, Latticefold, Latticefold plus, Neo, SALSAA and Cyclo. Understand how lattice-based folding schemes are designed and the current bottlenecks.
 
@@ -99,31 +99,73 @@ Product: videos or lectures or blogs
 
 Timeline: 2026.01 ~ 2026.04
 
-## 2. practical learning & coding
+## 2. Practical learning & coding
 
 Goal:  We plan to develop baby lattice folding, an educational Rust implementation of the lattice-based folding scheme (SALSAA), building upon existing theoretical and practical foundations.
 
-Outline:
-- [x] RoKs:
-    - [x] join
-    - [x] batch
-    - [x] decompose
-    - [x] rp
-    - [x] fold
-    - [x] norm check
-- [x] Whole folding chain of the RoKs
+### How this was built
+As a learning project, the folding scheme and the underlying tech (sumcheck, LDE, NTT, matrices, polynomial rings, etc.) are mostly written by hand. Claude Code assisted with refactoring, debugging, tests, and docs.
+
+### Scope: built from scratch
+
+Everything down to the field is implemented in place, no external dependencies.
+
+| Layer | Module | What it is |
+|---|---|---|
+| Field | `src/zq.rs` | `Z_q` arithmetic, const-generic `Zq<Q>` |
+| Polynomial ring | `src/ring.rs` | cyclotomic ring `R_q = Z_q[X]/(X^d+1)` |
+| NTT | `src/ntt.rs` | negacyclic NTT / INTT |
+| Matrices | `src/mat.rs` | `Rq` matrices |
+| Polynomial IOP | `src/lde.rs`, `src/sumcheck.rs` | LDE over the hypercube + multivariate sumcheck |
+| Relations | `src/relations.rs` | the `LinRelation` (Σ^lin) carried through the chain |
+| RoKs | `src/rok/` | the six reductions of knowledge (below) |
+
+### What SALSAA does: the RoK chain
+
+One round of the folding scheme is composed of a chain of *reductions of knowledge* (RoKs), as described in SALSAA paper Ch6.
+
+![chain of RoKs](./assets/salsaa_folding_chain.png)
+
+Each one
+takes and outputs linear relations. The verifier only has to trust the last:
+
+- **join** — combine `L` linear relations into a single one (stack the witnesses and
+  commitments).
+- **norm** — prove the witness actually satisfies its $ℓ_2$ norm bound (via the canonical
+  embedding). The statement is reduced to 2 oracle queries (2 statements) and embedded into the output linear relation.
+- **⊗RP** — a structured (tensor) Johnson–Lindenstrauss random projection. Projecting `W`
+  to a low dimension approximately preserves its norm, so the prover shows `W` is small with
+  high probability. This is what lets `fold` stay knowledge-sound without relying on a
+  subtractive set.
+- **fold** — the actual fold: take a random linear combination of the witnesses so they
+  collapse into a single witness column. The witness norm increases accordingly.
+- **join** (again) — re-join the resulting relations.
+- **batch** — batch several linear / inner-product checks into one.
+- **b-decomp** — b-ary decomposition of the folded witness, to keep the coefficients small
+  (control the norm growth that folding introduces, so the next round still verifies).
+
+### Progress
+
+- [x] RoKs: `join`, `batch`, `decompose`, `rp`, `fold`, `norm check`
+- [x] Whole folding chain of the RoKs (runs end-to-end — see `src/salsaa.rs`)
 - Future:
-    - [ ] R1CS support: currently only support raw `LinRelation`. Should have a way to support 
-    - [ ] Fiat–Shamir
-    - [ ] Precomputed NTT twiddle table for ζ^i — `src/ntt.rs` recomputes powers inside the butterfly; precompute once per `(Q, D)`.
-    - [ ] `rayon` for data parallelism — NTT butterflies, Ajtai row sums, `Rq` matmul, MLE eval. Behind a feature flag so the educational path stays single-threaded
+    - [ ] R1CS support — currently only raw `LinRelation`
+    - [ ] Fiat–Shamir transform
+    - [ ] Precomputed NTT twiddle table for ζ^i — `src/ntt.rs` recomputes powers inside the
+      butterfly; precompute once per `(Q, D)`
+    - [ ] `rayon` for data parallelism (NTT butterflies, Ajtai row sums, `Rq` matmul, MLE
+      eval), behind a feature flag so the educational path stays single-threaded
 
-Reference:
- 1. Latticefold: <https://github.com/NethermindEth/latticefold>
- 2. SALSAA: <https://github.com/lattice-arguments/salsaa>
- 3. Cyclo: <https://github.com/osdnk/cyclo>
- 4. Arkworks-Rust: <https://github.com/arkworks-rs/algebra>
+### Reference
 
-Product: codes
+SALSAA builds on a line of lattice-based reduction-of-knowledge toolkits. The primary
+references for this implementation:
 
-Timeline: 2026.04 ~ 2026.08
+1. SALSAA — [eprint 2025/2124](https://eprint.iacr.org/2025/2124)
+2. RoK and Roll — [eprint 2025/1220](https://eprint.iacr.org/2025/1220)
+3. RoK, Paper, SISsors — [eprint 2024/1972](https://eprint.iacr.org/2024/1972)
+
+
+See also the authors' official implementation — [lattice-arguments/salsaa](https://github.com/lattice-arguments/salsaa).
+
+Timeline: 2026.04 ~ 2026.05

@@ -1,6 +1,3 @@
-//! Π^rp: Prover proves W satisfying FW=Y with |w| <= beta using
-//! Johnson-Lindenstrauss random projection.
-
 use rand::Rng;
 
 use crate::{
@@ -42,16 +39,12 @@ fn vec_col_major<const Q: u64, const D: usize>(w: &Mat<Rq<Q, D>>) -> Mat<Rq<Q, D
     Mat::from_flatten(data.len(), data)
 }
 
-/// Π^⊗RP: prove W satisfies F·W = Y with ‖W‖ ≤ β using Johnson–Lindenstrauss
-/// random projection. Returns:
-///   - `lin_orig`:  augmented original (H̃, F̃, Ỹ) with W unchanged, plus the
-///     c_1·Ĵ row constraining W via the projection.
-///   - `lin_w_hat`: projected ((I, F̂, ŷ), ŵ) — width collapsed to r=1,
-///     m shrinks to m' = m/r, β grows to m_rp · β.
-///
-/// Prover proves W satisfying FW=Y with |W| <= beta using Johnson-Lindenstrauss
-/// random projection.
-/// Returns 2 relations
+/// Π^⊗RP: approximately proves W is small using Johnson–Lindenstrauss
+/// random projection. With Π^⊗RP, P can prove W is small enough with high
+/// probability, and we can guarantee knowledge soundness even without using a
+/// subtractive set in Π^fold.
+/// 
+/// Returns:
 /// - lin_orig:  original `lin` + "W projects to r via c_1*j_hat"
 /// - lin_w_hat: Commitment of projected W and it's within a new norm bound \hat beta
 ///   two relations are chained by `r_vec`, and RLC is used to compress new statements.

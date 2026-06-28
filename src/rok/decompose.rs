@@ -67,7 +67,6 @@ pub fn compose_zq<const Q: u64>(coeffs: &[Zq<Q>], b: u64) -> Zq<Q> {
 
 /// Decompose witness W into l matrices V_0, ..., V_{l-1} such that
 /// W = Σ_k b^k · V_k, with each V_k's polynomial coefficients in [-⌊b/2⌋, ⌊b/2⌋].
-///
 /// Per-entry decomposition runs `balanced_b_ary_decompose_zq` on every
 /// coefficient of every R_q entry of W:
 ///   r = 4 + 5x + 3x^2  →  for each coefficient c at exponent `exp`:

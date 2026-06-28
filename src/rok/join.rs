@@ -1,5 +1,3 @@
-//! Combines two linear relations sharing the same commitment matrix into one.
-
 use std::cmp::max;
 
 use crate::{
@@ -8,6 +6,8 @@ use crate::{
     ring::Rq,
 };
 
+/// Combines two linear relations sharing the same commitment matrix into one
+/// relation with a higher F and wider W.
 pub fn rok_join<const Q: u64, const D: usize>(
     lin_0: &LinRelation<Q, D>,
     lin_1: &LinRelation<Q, D>,
