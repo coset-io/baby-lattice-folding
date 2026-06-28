@@ -43,7 +43,7 @@ fn vec_col_major<const Q: u64, const D: usize>(w: &Mat<Rq<Q, D>>) -> Mat<Rq<Q, D
 /// random projection. With Π^⊗RP, P can prove W is small enough with high
 /// probability, and we can guarantee knowledge soundness even without using a
 /// subtractive set in Π^fold.
-/// 
+///
 /// Returns:
 /// - lin_orig:  original `lin` + "W projects to r via c_1*j_hat"
 /// - lin_w_hat: Commitment of projected W and it's within a new norm bound \hat beta
